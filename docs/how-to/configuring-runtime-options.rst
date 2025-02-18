@@ -217,6 +217,33 @@ The following example:
 
    ROCPROFSYS_ROCM_EVENTS = GPUBusy     SQ_WAVES:device=0    SQ_INSTS_VALU:device=1
 
+Exploring GPU Metrics
+---------------------
+
+ROCm Systems Profiler supports GPU metrics collection, sampling, and API tracing via ROCprofiler-SDK and rocm-smi.
+ROCprofiler-SDK supports application tracing to provide a big picture of the GPU application execution and kernel profiling to provide low-level hardware details from the performance counters.
+The AMD-SMI library offers a unified tool for managing, monitoring, and retrieving information about the system's drivers and GPUs.
+
+Sampling GPU metrics like utilization, temperature, power consumption, memory usage, etc., can be configured with ``ROCPROFSYS_ROCM_SMI_METRICS``. The 
+``ROCPROFSYS_USE_ROCM_SMI`` setting should be enabled for GPU metric collection.
+
+For example, the following is a valid configuration:
+
+.. code-block:: shell
+
+   ROCPROFSYS_ROCM_SMI_METRICS=busy,temp,power,vcn_activity,mem_usage
+
+Supported values for ``ROCPROFSYS_ROCM_SMI_METRICS`` are: ``busy``, ``temp``, ``power``, ``vcn_activity``, ``mem_usage``, ``jpeg_activity``.
+
+API tracing is configured with the ``ROCPROFSYS_ROCM_DOMAINS`` setting. Supported values for this setting are those supported by ROCprofiler-SDK, which are returned by the API `get_callback_tracing_names()` and `get_buffer_tracing_names()`. 
+Examples values for this setting: ``hip_runtime_api``, ``kernel_dispatch``, ``memory_copy``, ``rocdecode_api``.
+
+For example, the following is a valid configuration:
+
+.. code-block:: shell
+
+   ROCPROFSYS_ROCM_DOMAINS=hip_runtime_api,kernel_dispatch,memory_copy,rocdecode_api
+
 rocprof-sys-avail examples
 -----------------------------------
 
@@ -474,7 +501,8 @@ Viewing components
    | sampling_gpu_power                | GPU Power Usage via ROCm-SMI. Derived fro... |
    | sampling_gpu_temp                 | GPU Temperature via ROCm-SMI. Derived fro... |
    | sampling_gpu_busy                 | GPU Utilization (% busy) via ROCm-SMI. De... |
-   | sampling_vcn_busy                 | GPU VCN Utilization (% activity) via ROCm... |
+   | sampling_gpu_vcn                  | GPU VCN Utilization (% activity) via ROCm... |
+   | sampling_gpu_jpeg                 | GPU JPEG Utilization (% activity) via ROCm.. |
    | sampling_gpu_memory_usage         | GPU Memory Usage via ROCm-SMI. Derived fr... |
    |-----------------------------------|----------------------------------------------|
 
