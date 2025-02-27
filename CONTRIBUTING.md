@@ -18,7 +18,7 @@ We welcome contributions to rocprofiler-systems.  Please follow these details to
 4. [Running Tests](#running-tests)
 5. [Code Structure](#code-structure)
 6. [Coding Style](#coding-style)
-9. [References](#references)
+7. [References](#references)
 
 ## Issue Discussion ##
 
@@ -77,7 +77,7 @@ By creating a pull request, you agree to the statements made in the [code licens
 
 * To run the test suite, use the following command: `make test`
 * Ensure all tests pass before submitting a pull request.
-* If the project was built with option `-D ROCPROFSYS_BUILD_TESTING=ON`, then the tests are built with it. Individual tests groups can be run using command: `ctest -R <test-name> -V --output-on-failure`. Command `ctest --print-labels` will list all the test names which can be passed to -R as test-name. 
+* If the project was built with option `-D ROCPROFSYS_BUILD_TESTING=ON`, then the tests are built with it. Individual tests groups can be run using command: `ctest -R <test-name> -V --output-on-failure`. Command `ctest --print-labels` will list all the test names which can be passed to -R as test-name.
 
 ## Coding Style ##
 
@@ -92,5 +92,5 @@ All code contributed to this project will be licensed under the license identifi
 
 ## References ##
 
-1. [ROCm Systems Profiler  Documentation](https://rocm.docs.amd.com/projects/rocprofiler-systems/en/latest/index.html)
+1. [ROCm Systems Profiler Documentation](https://rocm.docs.amd.com/projects/rocprofiler-systems/en/latest/index.html)
 2. [ROCm Systems Profiler README](README.md)
