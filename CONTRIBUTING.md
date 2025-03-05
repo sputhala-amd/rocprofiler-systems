@@ -44,6 +44,7 @@ Please use the GitHub Issues tab to notify us of issues.
 * Contributions should align with the project's goals and maintainability.
 * Code should be well-documented and include tests where applicable.
 * Ensure that your changes do not break existing functionality.
+* Each commit is to be digitally signed. For more details see: [About commit signature verification - GitHub Docs](https://docs.github.com/en/authentication/managing-commit-signature-verification/about-commit-signature-verification).
 
 ### Exceptions ###
 
