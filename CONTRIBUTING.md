@@ -13,31 +13,23 @@ We welcome contributions to rocprofiler-systems.  Please follow these details to
 ## Table of Contents ##
 
 1. [Issue Discussion](#issue-discussion)
-2. [Pull Request Guidelines](#pull-request-guidelines)
-3. [Setting Up the Development Environment](#setting-up-the-development-environment)
-4. [Running Tests](#running-tests)
-5. [Code Structure](#code-structure)
-6. [Coding Style](#coding-style)
-7. [References](#references)
+2. [Acceptance Criteria](#acceptance-criteria)
+3. [Pull Request Guidelines](#pull-request-guidelines)
+4. [Coding Style](#coding-style)
+5. [Code License](#code-license)
+6. [References](#references)
 
 ## Issue Discussion ##
 
 Please use the GitHub Issues tab to notify us of issues.
 
 * Use your best judgement for issue creation. Search [existing issues](https://github.com/ROCm/rocprofiler-systems/issues) to make sure your issue isn't already listed
-* If your issue is already listed, upvote the issue and
-  comment or post to provide additional details, such as how you reproduced this issue.
-* If you're not sure if your issue is the same, err on the side of caution and file your issue.
-  You can add a comment to include the issue number (and link) for the similar issue. If we evaluate
-  your issue as being the same as the existing issue, we'll close the duplicate.
+* If your issue is already listed, upvote the issue and comment or post to provide additional details, such as how you reproduced this issue.
+* If you're not sure if your issue is the same, err on the side of caution and file your issue. You can add a comment to include the issue number (and link) for the similar issue. If we evaluate your issue as being the same as the existing issue, we'll close the duplicate.
 * If your issue doesn't exist, use the issue template to file a new issue.
-  * When filing an issue, be sure to provide as much information as possible, including script output so
-    we can collect information about your configuration. This helps reduce the time required to
-    reproduce your issue.
-  * Check your issue regularly, as we may require additional information to successfully reproduce the
-    issue.
-* You may also open an issue to ask questions to the maintainers about whether a proposed change
-  meets the acceptance criteria, or to discuss an idea pertaining to the library.
+* When filing an issue, be sure to provide as much information as possible, including script output so we can collect information about your configuration. This helps reduce the time required to reproduce your issue.
+* Check your issue regularly, as we may require additional information to successfully reproduce the issue.
+* You may also open an issue to ask questions to the maintainers about whether a proposed change meets the acceptance criteria, or to discuss an idea pertaining to the library.
 
 ## Acceptance Criteria ##
 
