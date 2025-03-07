@@ -185,8 +185,8 @@ set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
 
 # Handle the project rebranding from "omnitrace" to "rocprofiler-systems"
 set(CPACK_DEBIAN_PACKAGE_PROVIDES ${OMNITRACE_PACKAGE_NAME})
-set(CPACK_DEBIAN_PACKAGE_REPLACES ${OMNITRACE_PACKAGE_NAME})
-set(CPACK_DEBIAN_PACKAGE_BREAKS ${OMNITRACE_PACKAGE_NAME})
+set(CPACK_DEBIAN_PACKAGE_REPLACES "${OMNITRACE_PACKAGE_NAME} (<< 2.0.0)")
+set(CPACK_DEBIAN_PACKAGE_BREAKS "${OMNITRACE_PACKAGE_NAME} (<< 2.0.0)")
 
 # -------------------------------------------------------------------------------------- #
 #
