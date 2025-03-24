@@ -107,8 +107,8 @@ struct data
     temp_t      m_temp      = 0;
     power_t     m_power     = 0;
     mem_usage_t m_mem_usage = 0;
-    std::unordered_map<uint32_t, std::vector<double>> m_vcn_metrics  = {};
-    std::unordered_map<uint32_t, std::vector<double>> m_jpeg_metrics = {};
+    std::vector<uint16_t> m_vcn_metrics = {};
+    std::vector<uint16_t> m_jpeg_metrics = {};
 
     friend std::ostream& operator<<(std::ostream& _os, const data& _v)
     {
@@ -184,12 +184,12 @@ ROCPROFSYS_DECLARE_EXTERN_COMPONENT(
     double)
 
 ROCPROFSYS_DECLARE_EXTERN_COMPONENT(
-    TIMEMORY_ESC(data_tracker<double, rocprofsys::component::backtrace_gpu_vcn>), true,
-    double)
+    TIMEMORY_ESC(data_tracker<uint16_t, rocprofsys::component::backtrace_gpu_vcn>), true,
+    uint16_t)
 
 ROCPROFSYS_DECLARE_EXTERN_COMPONENT(
-    TIMEMORY_ESC(data_tracker<double, rocprofsys::component::backtrace_gpu_jpeg>), true,
-    double)
+    TIMEMORY_ESC(data_tracker<uint16_t, rocprofsys::component::backtrace_gpu_jpeg>), true,
+    uint16_t)
 
 #    endif
 #endif

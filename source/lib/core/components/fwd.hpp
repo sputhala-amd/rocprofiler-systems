@@ -91,8 +91,8 @@ using sampling_gpu_busy   = data_tracker<double, backtrace_gpu_busy>;
 using sampling_gpu_temp   = data_tracker<double, backtrace_gpu_temp>;
 using sampling_gpu_power  = data_tracker<double, backtrace_gpu_power>;
 using sampling_gpu_memory = data_tracker<double, backtrace_gpu_memory>;
-using sampling_gpu_vcn    = data_tracker<double, backtrace_gpu_vcn>;
-using sampling_gpu_jpeg   = data_tracker<double, backtrace_gpu_jpeg>;
+using sampling_gpu_vcn    = data_tracker<uint16_t, backtrace_gpu_vcn>;
+using sampling_gpu_jpeg   = data_tracker<uint16_t, backtrace_gpu_jpeg>;
 
 template <typename ApiT, typename StartFuncT = default_functor_t,
           typename StopFuncT = default_functor_t>
@@ -198,8 +198,8 @@ TIMEMORY_STATISTICS_TYPE(rocprofsys::component::sampling_gpu_busy, double)
 TIMEMORY_STATISTICS_TYPE(rocprofsys::component::sampling_gpu_temp, double)
 TIMEMORY_STATISTICS_TYPE(rocprofsys::component::sampling_gpu_power, double)
 TIMEMORY_STATISTICS_TYPE(rocprofsys::component::sampling_gpu_memory, double)
-TIMEMORY_STATISTICS_TYPE(rocprofsys::component::sampling_gpu_vcn, double)
-TIMEMORY_STATISTICS_TYPE(rocprofsys::component::sampling_gpu_jpeg, double)
+TIMEMORY_STATISTICS_TYPE(rocprofsys::component::sampling_gpu_vcn, uint16_t)
+TIMEMORY_STATISTICS_TYPE(rocprofsys::component::sampling_gpu_jpeg, uint16_t)
 TIMEMORY_STATISTICS_TYPE(rocprofsys::component::comm_data_tracker_t, float)
 
 // enable timing units
