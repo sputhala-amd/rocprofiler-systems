@@ -112,7 +112,7 @@ rocprofsys_mpi_copy(MPI_Comm, int, void*, void*, void*, int*)
 int
 rocprofsys_mpi_fini(MPI_Comm, int, void*, void*)
 {
-    ROCPROFSYS_DEBUG("MPI Comm attribute finalize\n");
+    ROCPROFSYS_BASIC_VERBOSE_F(0, "MPI Comm attribute finalize\n");
     auto _blocked = get_sampling_signals();
     if(!_blocked.empty())
         tim::signals::block_signals(_blocked, tim::signals::sigmask_scope::process);
@@ -140,6 +140,7 @@ rocprofsys_mpi_set_attr()
     if(!_blocked.empty())
         tim::signals::unblock_signals(_blocked, tim::signals::sigmask_scope::process);
 #endif
+    ROCPROFSYS_BASIC_VERBOSE_F(0, "*** Debug:: Configure rocprofsys_mpi_set_attr...\n");
 }
 
 using strset_t       = std::set<std::string>;
@@ -147,11 +148,30 @@ auto permit_bindings = strset_t{};
 auto reject_bindings = strset_t{};
 }  // namespace
 
+mpi_gotcha::hash_array_t&
+mpi_gotcha::get_hashes()
+{
+    static auto _v = []() {
+        const auto& _data = mpi_gotcha_t::get_gotcha_data();
+        auto        _init = hash_array_t{};
+        for(size_t i = 0; i < gotcha_capacity; ++i)
+        {
+            auto&& _id = _data.at(i).tool_id;
+            if(!_id.empty())
+                _init.at(i) = tim::add_hash_id(_id.c_str());
+            else
+                ROCPROFSYS_VERBOSE(1, "WARNING!!! mpi_gotcha tool id at index %zu was empty!\n", i);
+        }
+        return _init;
+    }();
+    return _v;
+}
+
 void
 mpi_gotcha::configure()
 {
     // don't emit warnings for missing MPI functions unless debug or verbosity >= 3
-    if(get_verbose_env() < 3 && !get_debug_env())
+    if(get_verbose_env() > 0 && !get_debug_env())
     {
         for(size_t i = 0; i < mpi_gotcha_t::capacity(); ++i)
         {
@@ -161,27 +181,34 @@ mpi_gotcha::configure()
     }
 
     mpi_gotcha_t::get_initializer() = []() {
-        mpi_gotcha_t::template configure<0, int, int*, char***>("MPI_Init");
-        mpi_gotcha_t::template configure<1, int, int*, char***, int, int*>(
-            "MPI_Init_thread");
-        mpi_gotcha_t::template configure<2, int>("MPI_Finalize");
+        mpi_gotcha_t::configure(comp::gotcha_config<0, int, int*, char***>{ "MPI_Init" });
+        mpi_gotcha_t::configure(comp::gotcha_config<1, int, int*, char***, int, int*>{"MPI_Init_thread" });
+        mpi_gotcha_t::configure(comp::gotcha_config<2, int>{ "MPI_Finalize" });
         reject_bindings.emplace("MPI_Init");
         reject_bindings.emplace("MPI_Init_thread");
         reject_bindings.emplace("MPI_Finalize");
 #if defined(ROCPROFSYS_USE_MPI_HEADERS) && ROCPROFSYS_USE_MPI_HEADERS > 0
-        mpi_gotcha_t::template configure<3, int, comm_t, int*>("MPI_Comm_rank");
-        mpi_gotcha_t::template configure<4, int, comm_t, int*>("MPI_Comm_size");
+        mpi_gotcha_t::configure(comp::gotcha_config<3, int, comm_t, int*>{ "MPI_Comm_rank" });
+        mpi_gotcha_t::configure(comp::gotcha_config<4, int, comm_t, int*>{ "MPI_Comm_size" });
         reject_bindings.emplace("MPI_Comm_rank");
         reject_bindings.emplace("MPI_Comm_size");
 #endif
     };
+
+    ROCPROFSYS_BASIC_VERBOSE_F(0, "*** Debug:: Configure MPI wrappers...\n");
+    is_disabled();
 }
 
 void
 mpi_gotcha::shutdown()
 {
-    update();
+    ROCPROFSYS_BASIC_VERBOSE_F(0, "*** Debug:: Shutdown MPI wrappers...\n");
+    mpi_gotcha_t::disable();
 }
+
+mpi_gotcha::mpi_gotcha(const gotcha_data_t& _data)
+: m_data{ &_data }
+{}
 
 bool
 mpi_gotcha::update()
@@ -230,34 +257,114 @@ mpi_gotcha::disable_comm_intercept()
 #endif
 }
 
-void
-mpi_gotcha::audit(const gotcha_data_t& _data, audit::incoming, int*, char***)
+template <typename... Args>
+auto
+mpi_gotcha::operator()(uintptr_t&&, int (*_callee)(Args...), Args... _args) const
 {
-    ROCPROFSYS_BASIC_DEBUG_F("%s(int*, char***)\n", _data.tool_id.c_str());
+    ROCPROFSYS_BASIC_VERBOSE(0, "***Debug:: %s(int*, char***)\n", m_data->tool_id.c_str());
 
-    rocprofsys_push_trace_hidden(_data.tool_id.c_str());
+    //rocprofsys_push_trace_hidden(m_data->tool_id.c_str());
 #if !defined(TIMEMORY_USE_MPI) && defined(TIMEMORY_USE_MPI_HEADERS)
     tim::mpi::is_initialized_callback() = []() { return true; };
     tim::mpi::is_finalized()            = false;
 #endif
+    using bundle_t = category_region<category::mpi>;
+
+    if(is_disabled() || m_protect)
+    {
+        if(!_callee)
+        {
+            if(m_data)
+            {
+                ROCPROFSYS_PRINT("Warning! nullptr to %s\n", m_data->tool_id.c_str());
+            }
+            return MPI_ERR_OTHER;
+        }
+        return (*_callee)(_args...);
+    }
+
+    struct local_dtor
+    {
+        explicit local_dtor(bool& _v)
+        : _protect{ _v }
+        {}
+        ~local_dtor() { _protect = false; }
+        bool& _protect;
+    } _dtor{ m_protect = true };
+
+    bundle_t::audit(std::string_view{ m_data->tool_id }, audit::incoming{}, _args...);
+    auto _ret = (*_callee)(_args...);
+    bundle_t::audit(std::string_view{ m_data->tool_id }, audit::outgoing{}, _ret);
+
+    return _ret;
 }
 
-void
-mpi_gotcha::audit(const gotcha_data_t& _data, audit::incoming, int*, char***, int, int*)
+int
+mpi_gotcha::operator()(int (*_callee)(int*, char***), int* _argc, char*** _argv) const
 {
-    ROCPROFSYS_BASIC_DEBUG_F("%s(int*, char***, int, int*)\n", _data.tool_id.c_str());
+    ROCPROFSYS_BASIC_VERBOSE(0, "***Debug::%s(int*, char***, int, int*)\n", m_data->tool_id.c_str());
 
-    rocprofsys_push_trace_hidden(_data.tool_id.c_str());
+    rocprofsys_push_trace_hidden(m_data->tool_id.c_str());
 #if !defined(TIMEMORY_USE_MPI) && defined(TIMEMORY_USE_MPI_HEADERS)
     tim::mpi::is_initialized_callback() = []() { return true; };
     tim::mpi::is_finalized()            = false;
 #endif
+    if(get_state() != ::rocprofsys::State::Active || m_protect)
+        return (*_callee)(_argc, _argv);
+
+    struct local_dtor
+    {
+        explicit local_dtor(bool& _v) : _protect{ _v } {}
+        ~local_dtor() { _protect = false; }
+        bool& _protect;
+    } _dtor{ m_protect = true };
+
+    //int _retval = (*this)(reinterpret_cast<uintptr_t>(_argc), _callee, _argc, _argv);
+    int _retval = (*_callee)(_argc, _argv);
+
+    if(_retval == tim::mpi::success_v && m_data->tool_id.find("MPI_Init") == 0)
+    {
+        rocprofsys_mpi_set_attr();
+        // rocprof-sys will set this environement variable to true in binary rewrite mode
+        // when it detects MPI. Hides this env variable from the user to avoid this
+        // being activated unwaringly during runtime instrumentation because that
+        // will result in double instrumenting the MPI functions (unless the MPI functions
+        // were excluded via a regex expression)
+        if(get_use_mpip())
+        {
+            ROCPROFSYS_BASIC_VERBOSE_F(0, "Activating MPI wrappers...\n");
+
+            // use env vars ROCPROFSYS_MPIP_PERMIT_LIST and ROCPROFSYS_MPIP_REJECT_LIST
+            // to control the gotcha bindings at runtime
+            comp::configure_mpip<mpip_bundle_t, project::rocprofsys>(permit_bindings,
+                                                                     reject_bindings);
+            mpip_index = comp::activate_mpip<mpip_bundle_t, project::rocprofsys>();
+        }
+
+        auto_lock_t _lk{ type_mutex<mpi_gotcha>() };
+        if(!mproc_comm_record.updated())
+        {
+            auto _pid  = getpid();
+            auto _ppid = getppid();
+            auto _size = mproc::get_concurrent_processes(_ppid).size();
+            if(_size > 0)
+            {
+                mproc_comm_record.comm = _ppid;
+                mproc_comm_record.size = m_size = _size;
+                auto _rank                      = mproc::get_process_index(_pid, _ppid);
+                if(_rank >= 0) mproc_comm_record.rank = m_rank = _rank;
+            }
+        }
+    }
+     
+    return _retval;
 }
 
-void
-mpi_gotcha::audit(const gotcha_data_t& _data, audit::incoming)
+int
+mpi_gotcha::operator()(int (*_callee)(int*, char***, int, int*), int* _argc, char*** _argv,
+                       int _required, int* _provided) const
 {
-    ROCPROFSYS_BASIC_DEBUG_F("%s()\n", _data.tool_id.c_str());
+    ROCPROFSYS_BASIC_VERBOSE(0, "****** Debug::%s()\n", m_data->tool_id.c_str());
 
     auto _blocked = get_sampling_signals();
     if(!_blocked.empty())
@@ -273,20 +380,24 @@ mpi_gotcha::audit(const gotcha_data_t& _data, audit::incoming)
     if(is_root_process() && rocprofsys::get_state() < rocprofsys::State::Finalized)
         rocprofsys_finalize_hidden();
 #endif
+    if(get_state() != ::rocprofsys::State::Active || m_protect)
+        return (*_callee)(_argc, _argv, _required, _provided);
+    // return (*this)(reinterpret_cast<uintptr_t>(_argc), _callee, _argc, _argv, _required, _provided);
+    int _retval = (*_callee)(_argc, _argv, _required, _provided);
 }
 
-void
-mpi_gotcha::audit(const gotcha_data_t& _data, audit::incoming, comm_t _comm, int* _val)
+//mpi_gotcha::operator()(int (*_callee)(void)) const
+int mpi_gotcha::operator()(int (*_callee)(comm_t, int*), comm_t _comm, int* _val) const
 {
-    ROCPROFSYS_BASIC_DEBUG_F("%s()\n", _data.tool_id.c_str());
+    ROCPROFSYS_BASIC_VERBOSE(0, "***Debug::%s()\n", m_data->tool_id.c_str());
 
-    rocprofsys_push_trace_hidden(_data.tool_id.c_str());
-    if(_data.tool_id == "MPI_Comm_rank")
+    //rocprofsys_push_trace_hidden(_data.tool_id.c_str());
+    if(m_data->tool_id == "MPI_Comm_rank")
     {
         m_comm_val = (uintptr_t) _comm;  // NOLINT
         m_rank_ptr = _val;
     }
-    else if(_data.tool_id == "MPI_Comm_size")
+    else if(m_data->tool_id == "MPI_Comm_size")
     {
         m_comm_val = (uintptr_t) _comm;  // NOLINT
         m_size_ptr = _val;
@@ -294,18 +405,60 @@ mpi_gotcha::audit(const gotcha_data_t& _data, audit::incoming, comm_t _comm, int
     else
     {
         ROCPROFSYS_BASIC_PRINT_F("%s(<comm>, %p) :: unexpected function wrapper\n",
-                                 _data.tool_id.c_str(), static_cast<void*>(_val));
+                                 m_data->tool_id.c_str(), static_cast<void*>(_val));
+    }
+    
+    if(get_state() != ::rocprofsys::State::Active || m_protect) return (*_callee)(_comm, _val);
+    int _retval = (*_callee)(_comm, _val);
+    // return (*this)(reinterpret_cast<uintptr_t>(_comm), _callee, _comm, _val);
+    if(_retval == tim::mpi::success_v && m_data->tool_id.find("MPI_Comm_") == 0)
+    {
+        auto_lock_t _lk{ type_mutex<mpi_gotcha>() };
+        if(m_comm_val != null_comm())
+        {
+            auto& _comm_entry = mpi_comm_records[m_comm_val];
+            _comm_entry.comm  = m_comm_val;
+
+            auto _get_rank = [&]() {
+                return (m_rank_ptr) ? std::max<int>(*m_rank_ptr, m_rank) : m_rank;
+            };
+
+            auto _get_size = [&]() {
+                return (m_size_ptr) ? std::max<int>(*m_size_ptr, m_size)
+                                    : std::max<int>(m_size, _get_rank() + 1);
+            };
+
+            if(m_data->tool_id == "MPI_Comm_rank" || m_data->tool_id == "MPI_Comm_size")
+            {
+                _comm_entry.rank = m_rank = std::max<int>(_comm_entry.rank, _get_rank());
+                _comm_entry.size = m_size = std::max<int>(_comm_entry.size, _get_size());
+            }
+            else
+            {
+                ROCPROFSYS_BASIC_VERBOSE(
+                    0, "%s() returned %i :: unexpected function wrapper\n",
+                    m_data->tool_id.c_str(), (int) _retval);
+            }
+
+            if(_comm_entry.updated())
+            {
+                static thread_local int _num_updates = 0;
+                static int              _disable_after =
+                    tim::get_env<int>("ROCPROFSYS_MPI_MAX_COMM_UPDATES", 4);
+                if(_num_updates++ < _disable_after) update();
+            }
+        }
     }
 }
 
-void
-mpi_gotcha::audit(const gotcha_data_t& _data, audit::outgoing, int _retval)
+/*
+int mpi_gotcha::operator()(int (*_callee)(void)) const
 {
-    ROCPROFSYS_BASIC_DEBUG_F("%s() returned %i\n", _data.tool_id.c_str(), (int) _retval);
+    // ROCPROFSYS_BASIC_DEBUG_F("%s() returned %i\n", _data.tool_id.c_str(), (int) _retval);
 
     if(!settings::use_output_suffix()) settings::use_output_suffix() = true;
 
-    if(_retval == tim::mpi::success_v && _data.tool_id.find("MPI_Init") == 0)
+    if(_retval == tim::mpi::success_v && m_data->tool_id.find("MPI_Init") == 0)
     {
         rocprofsys_mpi_set_attr();
         // rocprof-sys will set this environement variable to true in binary rewrite mode
@@ -339,7 +492,7 @@ mpi_gotcha::audit(const gotcha_data_t& _data, audit::outgoing, int _retval)
             }
         }
     }
-    else if(_retval == tim::mpi::success_v && _data.tool_id.find("MPI_Comm_") == 0)
+    else if(_retval == tim::mpi::success_v && m_data->tool_id.find("MPI_Comm_") == 0)
     {
         auto_lock_t _lk{ type_mutex<mpi_gotcha>() };
         if(m_comm_val != null_comm())
@@ -356,7 +509,7 @@ mpi_gotcha::audit(const gotcha_data_t& _data, audit::outgoing, int _retval)
                                     : std::max<int>(m_size, _get_rank() + 1);
             };
 
-            if(_data.tool_id == "MPI_Comm_rank" || _data.tool_id == "MPI_Comm_size")
+            if(m_data->tool_id == "MPI_Comm_rank" || m_data->tool_id == "MPI_Comm_size")
             {
                 _comm_entry.rank = m_rank = std::max<int>(_comm_entry.rank, _get_rank());
                 _comm_entry.size = m_size = std::max<int>(_comm_entry.size, _get_size());
@@ -365,7 +518,7 @@ mpi_gotcha::audit(const gotcha_data_t& _data, audit::outgoing, int _retval)
             {
                 ROCPROFSYS_BASIC_VERBOSE(
                     0, "%s() returned %i :: unexpected function wrapper\n",
-                    _data.tool_id.c_str(), (int) _retval);
+                    m_data->tool_id.c_str(), (int) _retval);
             }
 
             if(_comm_entry.updated())
@@ -377,7 +530,18 @@ mpi_gotcha::audit(const gotcha_data_t& _data, audit::outgoing, int _retval)
             }
         }
     }
-    rocprofsys_pop_trace_hidden(_data.tool_id.c_str());
+    rocprofsys_pop_trace_hidden(m_data.tool_id.c_str());
+    if(get_state() != ::rocprofsys::State::Active || m_protect)
+        return (*_callee)(_comm, _val);
+    return (*this)(reinterpret_cast<uintptr_t>(_comm), _callee, _comm, _val);
+}
+*/
+bool
+mpi_gotcha::is_disabled()
+{
+    bool disabled = (get_state() != ::rocprofsys::State::Active);
+    ROCPROFSYS_BASIC_VERBOSE_F(0, "*** Debug:: MPI wrappers disabled... %s\n",  disabled ? "true" : "false");
+    return get_state() != ::rocprofsys::State::Active;
 }
 }  // namespace component
 }  // namespace rocprofsys

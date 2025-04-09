@@ -27,6 +27,8 @@
 #include "core/timemory.hpp"
 
 #include <cstdint>
+#include <map>
+#include <string>
 
 namespace rocprofsys
 {
@@ -35,51 +37,54 @@ namespace component
 // this is used to wrap MPI_Init and MPI_Init_thread
 struct mpi_gotcha : comp::base<mpi_gotcha, void>
 {
+    static constexpr size_t gotcha_capacity = 5;
+    using hash_array_t                      = std::array<size_t, gotcha_capacity>;
     using comm_t        = tim::mpi::comm_t;
     using gotcha_data_t = comp::gotcha_data;
 
     ROCPROFSYS_DEFAULT_OBJECT(mpi_gotcha)
 
+    explicit mpi_gotcha(const gotcha_data_t&);
+
     // string id for component
-    static std::string label() { return "mpi_gotcha"; }
+    // static std::string label() { return "mpi_gotcha"; }
 
     // generate the gotcha wrappers
     static void configure();
     static void shutdown();
 
-    // called right before MPI_Init with that functions arguments
-    static void audit(const gotcha_data_t& _data, audit::incoming, int*, char***);
-
-    // called right before MPI_Init_thread with that functions arguments
-    static void audit(const gotcha_data_t& _data, audit::incoming, int*, char***, int,
-                      int*);
-
-    // called right before MPI_Finalize
-    static void audit(const gotcha_data_t& _data, audit::incoming);
-
-    // called right before MPI_Comm_{rank,size} with that functions arguments
-    void audit(const gotcha_data_t& _data, audit::incoming, comm_t, int*);
-
-    // called right after MPI_{Init,Init_thread,Comm_rank,Comm_size} with the return value
-    void audit(const gotcha_data_t& _data, audit::outgoing, int _retval);
+    // operator overloads for MPI functions
+    int operator()(int (*)(int*, char***), int*, char***) const;
+    int operator()(int (*)(int*, char***, int, int*), int*, char***, int, int*) const;
+    int operator()(int (*)(void)) const;
+    int operator()(int (*)(comm_t, int*), comm_t, int*) const;
 
     // without these you will get a verbosity level 1 warning
-    static void start() {}
-    static void stop() {}
+    // static void start() {}
+    // static void stop() {}
 
     static bool      update();
     static uintptr_t null_comm() { return std::numeric_limits<uintptr_t>::max(); }
     static void      disable_comm_intercept();
 
 private:
-    int       m_rank     = 0;
-    int       m_size     = 1;
-    int*      m_rank_ptr = nullptr;
-    int*      m_size_ptr = nullptr;
-    uintptr_t m_comm_val = null_comm();
+    mutable int       m_rank     = 0;
+    mutable int       m_size     = 1;
+    mutable int*      m_rank_ptr = nullptr;
+    mutable int*      m_size_ptr = nullptr;
+    mutable uintptr_t m_comm_val = null_comm();
+    
+    static bool          is_disabled();
+    static hash_array_t& get_hashes();
+
+    template <typename... Args>
+    auto operator()(uintptr_t&&, int (*)(Args...), Args...) const;
+
+    mutable bool         m_protect = false;
+    const gotcha_data_t* m_data    = nullptr;
+
 };
 }  // namespace component
 
-using mpi_gotcha_t =
-    comp::gotcha<5, tim::component_tuple<component::mpi_gotcha>, project::rocprofsys>;
+using mpi_gotcha_t = comp::gotcha<5, tim::component_tuple<component::mpi_gotcha>, project::rocprofsys>;
 }  // namespace rocprofsys

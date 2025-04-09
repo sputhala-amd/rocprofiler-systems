@@ -192,8 +192,8 @@ setup_gotchas()
     if(_initialized) return;
     _initialized = true;
 
-    ROCPROFSYS_BASIC_DEBUG(
-        "Configuring gotcha wrapper around fork, MPI_Init, and MPI_Init_thread\n");
+    ROCPROFSYS_BASIC_VERBOSE(0,
+        "*** Configuring gotcha wrapper around fork, MPI_Init, and MPI_Init_thread\n");
 
     component::mpi_gotcha::configure();
     component::exit_gotcha::configure();

@@ -322,6 +322,7 @@ rocprofsys_set_mpi_hidden(bool use, bool attached)
     ROCPROFSYS_CONDITIONAL_PRINT_F(get_debug_init() || get_verbose_env() > 2,
                                    "use: %s, attached: %s\n", (use) ? "y" : "n",
                                    (attached) ? "y" : "n");
+    ROCPROFSYS_BASIC_VERBOSE_F(0, "*** Debug:: rocprofsys_set_mpi_hidden...\n");
 
     _set_mpi_called       = true;
     config::is_attached() = attached;
@@ -519,6 +520,7 @@ rocprofsys_init_tooling_hidden(bool postinit)
 
     ROCPROFSYS_SCOPED_SAMPLING_ON_CHILD_THREADS(false);
 
+    ROCPROFSYS_BASIC_VERBOSE_F(0, "*** Debug:: rocprofsys_preinit_hidden() MPI Tool initialize...\n");
     // ideally these have already been started
     rocprofsys_preinit_hidden();
 
@@ -670,8 +672,10 @@ rocprofsys_init_hidden(const char* _mode, bool _is_binary_rewrite, const char* _
     tim::set_env("ROCPROFSYS_MODE", _mode, 0);
     config::is_binary_rewrite() = _is_binary_rewrite;
 
+    ROCPROFSYS_BASIC_VERBOSE_F(0, "*** Debug:: rocprofsys_preinit_hidden() MPI initialize outside...\n");
     if(_set_mpi_called)
     {
+        ROCPROFSYS_BASIC_VERBOSE_F(0, "*** Debug:: rocprofsys_preinit_hidden() MPI initialize...\n");
         rocprofsys_preinit_hidden();
     }
 }
