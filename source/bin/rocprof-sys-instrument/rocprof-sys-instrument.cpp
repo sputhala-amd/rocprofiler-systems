@@ -1707,7 +1707,9 @@ main(int argc, char** argv)
 #if ROCPROFSYS_USE_MPI > 0 || ROCPROFSYS_USE_MPI_HEADERS > 0
     // if any of the below MPI functions are found, enable MPI support
     for(const auto* itr : { "MPI_Init", "MPI_Init_thread", "MPI_Finalize",
-                            "MPI_Comm_rank", "MPI_Comm_size" })
+                            "MPI_Comm_rank", "MPI_Comm_size", "PMPI_Init",
+                            "PMPI_Init_thread", "PMPI_Finalize",
+                            "PMPI_Comm_rank", "PMPI_Comm_size"})
     {
         if(find_function(app_image, itr) != nullptr)
         {

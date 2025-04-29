@@ -43,8 +43,8 @@ extern "C"
 #include <libavutil/md5.h>
 #include <libavutil/mem.h>
 }
-#include "rocdecode/rocdecode.h"
-#include "rocdecode/rocparser.h"
+#include <rocdecode/rocdecode.h>
+#include <rocdecode/rocparser.h>
 
 /*!
  * \file

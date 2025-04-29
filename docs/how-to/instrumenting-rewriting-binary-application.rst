@@ -289,7 +289,7 @@ view the help menu.
       --env                          Environment variables to add to the runtime in form VARIABLE=VALUE. E.g. use \'--env
                                     ROCPROFSYS_PROFILE=ON\' to default to using timemory instead of perfetto
       --mpi                          Enable MPI support (requires rocprof-sys built w/ full or partial MPI support). NOTE: this
-                                    will automatically be activated if MPI_Init, MPI_Init_thread, MPI_Finalize,
+                                    will automatically be activated for C/CPP if MPI_Init, MPI_Init_thread, MPI_Finalize,
                                     MPI_Comm_rank, or MPI_Comm_size are found in the symbol table of target
 
       [GRANULARITY OPTIONS]

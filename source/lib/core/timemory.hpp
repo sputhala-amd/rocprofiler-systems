@@ -27,11 +27,10 @@
 #include "defines.hpp"
 
 #include <timemory/api.hpp>
-#include <timemory/backends/mpi.hpp>
+#include "timemory/utility.hpp"
 #include <timemory/backends/process.hpp>
 #include <timemory/backends/threading.hpp>
 #include <timemory/components.hpp>
-#include <timemory/components/gotcha/mpip.hpp>
 #include <timemory/config.hpp>
 #include <timemory/environment.hpp>
 #include <timemory/manager.hpp>
