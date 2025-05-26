@@ -22,14 +22,14 @@
 
 #include "library/components/mpi_gotcha.hpp"
 #include "api.hpp"
-#include "mpip.hpp"
 #include "core/components/fwd.hpp"
 #include "core/config.hpp"
 #include "core/debug.hpp"
-#include "core/mproc.hpp"
 #include "core/mpi.hpp"
+#include "core/mproc.hpp"
 #include "library/components/category_region.hpp"
 #include "library/components/comm_data.hpp"
+#include "mpip.hpp"
 
 #include <timemory/backends/process.hpp>
 #include <timemory/mpl/types.hpp>
@@ -47,8 +47,7 @@ namespace component
 {
 namespace
 {
-using mpip_bundle_t =
-    tim::component_tuple<category_region<category::mpi>, comm_data>;
+using mpip_bundle_t = tim::component_tuple<category_region<category::mpi>, comm_data>;
 
 struct comm_rank_data
 {
@@ -319,8 +318,8 @@ mpi_gotcha::audit(const gotcha_data_t& _data, audit::outgoing, int _retval)
 
     if(!settings::use_output_suffix()) settings::use_output_suffix() = true;
 
-    if(_retval == rocprofsys::mpi::success_v && (_data.tool_id.find("MPI_Init") == 0
-                                             || _data.tool_id.find("PMPI_Init") == 0))
+    if(_retval == rocprofsys::mpi::success_v &&
+       (_data.tool_id.find("MPI_Init") == 0 || _data.tool_id.find("PMPI_Init") == 0))
     {
         rocprofsys_mpi_set_attr();
         // rocprof-sys will set this environement variable to true in binary rewrite mode
@@ -335,7 +334,7 @@ mpi_gotcha::audit(const gotcha_data_t& _data, audit::outgoing, int _retval)
             // use env vars ROCPROFSYS_MPIP_PERMIT_LIST and ROCPROFSYS_MPIP_REJECT_LIST
             // to control the gotcha bindings at runtime
             configure_mpip<mpip_bundle_t, project::rocprofsys>(permit_bindings,
-                                                                     reject_bindings);
+                                                               reject_bindings);
             mpip_index = activate_mpip<mpip_bundle_t, project::rocprofsys>();
         }
 
@@ -354,8 +353,9 @@ mpi_gotcha::audit(const gotcha_data_t& _data, audit::outgoing, int _retval)
             }
         }
     }
-    else if(_retval == rocprofsys::mpi::success_v && (_data.tool_id.find("MPI_Comm_") == 0
-                                                  || _data.tool_id.find("PMPI_Comm_") == 0))
+    else if(_retval == rocprofsys::mpi::success_v &&
+            (_data.tool_id.find("MPI_Comm_") == 0 ||
+             _data.tool_id.find("PMPI_Comm_") == 0))
     {
         auto_lock_t _lk{ type_mutex<mpi_gotcha>() };
         if(m_comm_val != null_comm())

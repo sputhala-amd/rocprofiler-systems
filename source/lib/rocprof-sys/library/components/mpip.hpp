@@ -24,25 +24,25 @@
 
 #include "core/timemory.hpp"
 
-#include "timemory/components/base.hpp"
-#include "timemory/components/gotcha/backends.hpp"
-#include "timemory/components/gotcha/types.hpp"
-#include "timemory/manager/declaration.hpp"
-#include "timemory/mpl/apply.hpp"
-#include "timemory/mpl/types.hpp"
-#include "timemory/units.hpp"
-#include "timemory/utility/demangle.hpp"
-#include "timemory/variadic/types.hpp"
+#include <timemory/components/base.hpp>
+#include <timemory/components/gotcha/backends.hpp>
+#include <timemory/components/gotcha/types.hpp>
+#include <timemory/manager/declaration.hpp>
+#include <timemory/mpl/apply.hpp>
+#include <timemory/mpl/types.hpp>
+#include <timemory/units.hpp>
+#include <timemory/utility/demangle.hpp>
+#include <timemory/variadic/types.hpp>
 
 #include <memory>
 #include <set>
 #include <string>
 #include <unordered_map>
 
-#if !defined(ROCPROFSYS_USE_MPI) && defined(ROCPROFSYS_USE_MPI_HEADERS) &&                   \
+#if !defined(ROCPROFSYS_USE_MPI) && defined(ROCPROFSYS_USE_MPI_HEADERS) &&               \
     !defined(OMPI_SKIP_MPICXX)
 #    define ROCPROFSYS_UNDEFINE_OMPI_SKIP_MPICXX 1
-#    define OMPI_SKIP_MPICXX 1
+#    define OMPI_SKIP_MPICXX                     1
 #endif
 
 #if defined(ROCPROFSYS_USE_MPI) || defined(ROCPROFSYS_USE_MPI_HEADERS)
@@ -113,8 +113,7 @@ struct mpip_handle : base<mpip_handle<Toolset, Tag>, void>
         if(get_tool_instance().get())
         {
             get_tool_instance()->stop();
-            if(idx == 0)
-                get_tool_instance().reset();
+            if(idx == 0) get_tool_instance().reset();
         }
     }
 
@@ -150,11 +149,11 @@ private:
 //======================================================================================//
 //
 }  // namespace component
-}  // namespace tim
+}  // namespace rocprofsys
 //
 //======================================================================================//
 //
-#include "timemory/timemory.hpp"
+#include <timemory/timemory.hpp>
 //
 //======================================================================================//
 //
@@ -226,7 +225,8 @@ rocprofsys::component::deactivate_mpip(uint64_t id)
 //
 template <typename Toolset, typename Tag>
 void
-rocprofsys::component::configure_mpip(const std::set<std::string>&, const std::set<std::string>&)
+rocprofsys::component::configure_mpip(const std::set<std::string>&,
+                                      const std::set<std::string>&)
 {}
 //
 #else
@@ -234,7 +234,7 @@ rocprofsys::component::configure_mpip(const std::set<std::string>&, const std::s
 template <typename Toolset, typename Tag>
 void
 rocprofsys::component::configure_mpip(const std::set<std::string>& permit,
-                               const std::set<std::string>& reject)
+                                      const std::set<std::string>& reject)
 {
     static constexpr size_t mpip_wrapper_count = NUM_ROCPROFSYS_MPIP_WRAPPERS;
     static bool             is_initialized     = false;

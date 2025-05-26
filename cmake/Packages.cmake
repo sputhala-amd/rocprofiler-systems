@@ -210,12 +210,12 @@ set(_ROCPROFSYS_MPI_HEADERS_ALLOW_MPICH ${MPI_HEADERS_ALLOW_MPICH})
 if(ROCPROFSYS_USE_MPI)
     find_package(MPI ${rocprofiler_systems_FIND_QUIETLY} REQUIRED)
     target_link_libraries(rocprofiler-systems-mpi INTERFACE MPI::MPI_C MPI::MPI_CXX)
-    rocprofiler_systems_target_compile_definitions(
-        rocprofiler-systems-mpi INTERFACE ROCPROFSYS_USE_MPI)
+    rocprofiler_systems_target_compile_definitions(rocprofiler-systems-mpi
+                                                   INTERFACE ROCPROFSYS_USE_MPI)
 elseif(ROCPROFSYS_USE_MPI_HEADERS)
     find_package(MPI-Headers ${rocprofiler_systems_FIND_QUIETLY} REQUIRED)
-    rocprofiler_systems_target_compile_definitions(
-        rocprofiler-systems-mpi INTERFACE ROCPROFSYS_USE_MPI_HEADERS)
+    rocprofiler_systems_target_compile_definitions(rocprofiler-systems-mpi
+                                                   INTERFACE ROCPROFSYS_USE_MPI_HEADERS)
     target_link_libraries(rocprofiler-systems-mpi INTERFACE MPI::MPI_HEADERS)
 endif()
 

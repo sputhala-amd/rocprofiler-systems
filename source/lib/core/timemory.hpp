@@ -27,7 +27,6 @@
 #include "defines.hpp"
 
 #include <timemory/api.hpp>
-#include "timemory/utility.hpp"
 #include <timemory/backends/process.hpp>
 #include <timemory/backends/threading.hpp>
 #include <timemory/components.hpp>
@@ -39,6 +38,7 @@
 #include <timemory/runtime.hpp>
 #include <timemory/settings.hpp>
 #include <timemory/storage.hpp>
+#include <timemory/utility.hpp>
 #include <timemory/utility/signals.hpp>
 #include <timemory/variadic.hpp>
 
