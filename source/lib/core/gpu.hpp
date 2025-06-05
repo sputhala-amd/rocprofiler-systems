@@ -65,10 +65,10 @@ private:
     friend void                    rocprofsys::gpu::get_processor_handles();
     friend uint32_t                rocprofsys::gpu::get_processor_count();
     friend amdsmi_processor_handle rocprofsys::gpu::get_handle_from_id(uint32_t dev_id);
-    friend bool                    rocprofsys::gpu::is_vcn_activity_supported(uint32_t dev_id);
-    friend bool                    rocprofsys::gpu::is_jpeg_activity_supported(uint32_t dev_id);
-    friend bool                    rocprofsys::gpu::is_vcn_busy_supported(uint32_t dev_id);
-    friend bool                    rocprofsys::gpu::is_jpeg_busy_supported(uint32_t dev_id);
+    friend bool rocprofsys::gpu::is_vcn_activity_supported(uint32_t dev_id);
+    friend bool rocprofsys::gpu::is_jpeg_activity_supported(uint32_t dev_id);
+    friend bool rocprofsys::gpu::is_vcn_busy_supported(uint32_t dev_id);
+    friend bool rocprofsys::gpu::is_jpeg_busy_supported(uint32_t dev_id);
 };
 #endif
 
