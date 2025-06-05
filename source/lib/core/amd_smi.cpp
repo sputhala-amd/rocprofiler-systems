@@ -105,6 +105,7 @@ check_error(const char* _file, int _line, amdsmi_status_t _code, bool* _option =
 std::set<uint32_t> amd_smi_config_data::device_list         = {};
 size_t             amd_smi_config_data::device_count        = 0;
 bool               amd_smi_config_data::track_jpeg_activity = false;
+bool               amd_smi_config_data::track_vcn_activity  = false;
 
 void
 setup_config_check()
@@ -112,7 +113,7 @@ setup_config_check()
     if(!get_use_amd_smi() || !gpu::initialize_amdsmi())
     {
         ROCPROFSYS_WARNING_F(
-            0, "AMD SMI is not available. Disabling jpeg activity tracking.");
+            0, "AMD SMI is not available. Disabling jpeg and vcn activity tracking.");
         return;
     }
     // Get processors and handles
@@ -132,7 +133,7 @@ setup_config_check()
         if(idx < amd_smi_config_data::device_count) _devices.emplace(idx);
     };
 
-    // Add devices to be sampled (to read jpeg_activity)
+    // Add devices to be sampled
     if(_all_devices)
     {
         for(uint32_t i = 0; i < amd_smi_config_data::device_count; ++i)
@@ -180,7 +181,7 @@ void
 config_settings(const std::shared_ptr<settings>& _config)
 {
     setup_config_check();
-    std::string desc_metrics = "busy, temp, power, mem_usage, vcn_metrics";
+    std::string desc_metrics = "busy, temp, power, mem_usage";
 
 #    define ROCPROFSYS_AMDSMI_GET(OPTION, FUNCTION, ...)                                 \
         if(OPTION)                                                                       \
@@ -196,7 +197,6 @@ config_settings(const std::shared_ptr<settings>& _config)
             }                                                                            \
         }
 
-    // Sample jpeg metric for availability
     if(!amd_smi_config_data::device_list.empty())
     {
         for(const auto& dev_id : amd_smi_config_data::device_list)
@@ -205,25 +205,23 @@ config_settings(const std::shared_ptr<settings>& _config)
             amdsmi_processor_handle sample_handle = gpu::get_handle_from_id(dev_id);
 
             // Verify that metrics are available and set respective flag
+            ROCPROFSYS_AMDSMI_GET(get_settings(dev_id).vcn_activity,
+                                  amdsmi_get_gpu_metrics_info, sample_handle,
+                                  &_gpu_metrics);
             ROCPROFSYS_AMDSMI_GET(get_settings(dev_id).jpeg_activity,
                                   amdsmi_get_gpu_metrics_info, sample_handle,
                                   &_gpu_metrics);
 
-            for(const auto& j_activity : _gpu_metrics.jpeg_activity)
-            {
-                if(j_activity != UINT16_MAX)
-                {
-                    amd_smi_config_data::track_jpeg_activity = true;
-                    break;
-                }
-            }
-
-            if(amd_smi_config_data::track_jpeg_activity) break;
+            if(_gpu_metrics.vcn_activity[0] != UINT16_MAX)
+                amd_smi_config_data::track_vcn_activity = true;
+            if(_gpu_metrics.jpeg_activity[0] != UINT16_MAX)
+                amd_smi_config_data::track_jpeg_activity = true;
         }
 #    undef ROCPROFSYS_AMDSMI_GET
     }
 
     if(amd_smi_config_data::track_jpeg_activity) desc_metrics += ", jpeg_activity";
+    if(amd_smi_config_data::track_vcn_activity) desc_metrics += ", vcn_activity";
 
     desc_metrics += ". ";
     ROCPROFSYS_CONFIG_SETTING(

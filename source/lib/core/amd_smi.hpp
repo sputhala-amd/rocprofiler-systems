@@ -63,6 +63,7 @@ struct amd_smi_settings
 struct amd_smi_config_data
 {
     static bool track_jpeg_activity;
+    static bool track_vcn_activity;
 
 private:
     friend void rocprofsys::amd_smi::setup_config_check();
