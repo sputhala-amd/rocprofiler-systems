@@ -33,7 +33,6 @@
 #include <tuple>
 #include <type_traits>
 
-#define ROCPROFSYS_USE_ROCM 1
 
 #if ROCPROFSYS_USE_ROCM > 0
 #    include <amd_smi/amdsmi.h>
@@ -54,9 +53,9 @@ setup_config_check();
 struct amd_smi_config_data
 {
     static std::set<uint32_t> gpuID_vcn_activity_support;
-    static std::set<uint32_t> gpuID_vcn_busy_support;
+    // static std::set<uint32_t> gpuID_vcn_busy_support;
     static std::set<uint32_t> gpuID_jpeg_activity_support;
-    static std::set<uint32_t> gpuID_jpeg_busy_support;
+    // static std::set<uint32_t> gpuID_jpeg_busy_support;
 
 private:
     friend bool rocprofsys::amd_smi::setup_config_check();
