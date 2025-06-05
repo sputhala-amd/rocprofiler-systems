@@ -50,27 +50,17 @@ config_settings(const std::shared_ptr<settings>&);
 
 #if defined(ROCPROFSYS_USE_ROCM) && ROCPROFSYS_USE_ROCM > 0
 
-void
+bool
 setup_config_check();
-
-// Needed for get_settings()
-struct amd_smi_settings
-{
-    bool jpeg_activity = true;
-    bool vcn_activity  = true;
-};
 
 struct amd_smi_config_data
 {
-    static bool track_jpeg_activity;
-    static bool track_vcn_activity;
+    static unordered_map<uint32_t> gpuID_vcn_support;
+    static unordered_map<uint32_t> gpuID_jpeg_support;
 
 private:
-    friend void rocprofsys::amd_smi::setup_config_check();
+    friend bool rocprofsys::amd_smi::setup_config_check();
     friend void rocprofsys::amd_smi::config_settings(const std::shared_ptr<settings>&);
-
-    static std::set<uint32_t> device_list;
-    static size_t             device_count;
 };
 
 #endif
