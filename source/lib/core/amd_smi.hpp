@@ -26,12 +26,12 @@
 #include <chrono>
 #include <future>
 #include <limits>
+#include <map>
 #include <memory>
 #include <ratio>
 #include <thread>
 #include <tuple>
 #include <type_traits>
-#include <map>
 
 #if ROCPROFSYS_USE_ROCM > 0
 #    include <amd_smi/amdsmi.h>

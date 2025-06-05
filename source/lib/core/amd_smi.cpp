@@ -97,20 +97,12 @@ config_settings(const std::shared_ptr<settings>& _config)
 
     if(!amd_smi_config_data::gpuID_jpeg_support.empty())
     {
-        jpeg_support += ", jpeg_activity (GPUs:";
-        for(const auto& id : amd_smi_config_data::gpuID_jpeg_support)
-            jpeg_support += " " + std::to_string(id) + ",";
-        jpeg_support.pop_back();
-        jpeg_support += ")";
+        jpeg_support += ", jpeg_activity";
     }
 
     if(!amd_smi_config_data::gpuID_vcn_support.empty())
     {
-        vcn_support += ", vcn_activity (GPUs:";
-        for(const auto& id : amd_smi_config_data::gpuID_vcn_support)
-            vcn_support += " " + std::to_string(id) + ",";
-        vcn_support.pop_back();
-        vcn_support += ")";
+        vcn_support += ", vcn_activity";
     }
 
     ROCPROFSYS_CONFIG_SETTING(
