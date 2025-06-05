@@ -71,8 +71,8 @@ get_setting_name(std::string _v)
 }  // namespace
 
 // See hpp for more information
-std::unordered_map<uint32_t> amd_smi_config_data::gpuID_vcn_support  = {};
-std::unordered_map<uint32_t> amd_smi_config_data::gpuID_jpeg_support = {};
+std::unordered_set<uint32_t> amd_smi_config_data::gpuID_vcn_support  = {};
+std::unordered_set<uint32_t> amd_smi_config_data::gpuID_jpeg_support = {};
 
 bool
 setup_config_check()
@@ -81,7 +81,7 @@ setup_config_check()
 
     // Get processors and activity support
     size_t device_count = gpu::get_processor_count();
-    for(size_t i = 0; i < amd_smi_config_data::device_count; i++)
+    for(size_t i = 0; i < device_count; i++)
     {
         if(gpu::is_jpeg_activity_supported(i) || gpu::is_jpeg_busy_supported(i))
             amd_smi_config_data::gpuID_jpeg_support.insert(i);
@@ -102,7 +102,7 @@ config_settings(const std::shared_ptr<settings>& _config)
     std::string jpeg_support = "";
     std::string vcn_support  = "";
 
-    if(!gpuID_jpeg_support.empty())
+    if(!amd_smi_config_data::gpuID_jpeg_support.empty())
     {
         jpeg_support += ", jpeg_activity (GPUs:";
         for(const auto& id : amd_smi_config_data::gpuID_jpeg_support)
@@ -111,7 +111,7 @@ config_settings(const std::shared_ptr<settings>& _config)
         jpeg_support += ")";
     }
 
-    if(!gpuID_vcn_support.empty())
+    if(!amd_smi_config_data::gpuID_vcn_support.empty())
     {
         vcn_support += ", vcn_activity (GPUs:";
         for(const auto& id : amd_smi_config_data::gpuID_vcn_support)
@@ -122,7 +122,7 @@ config_settings(const std::shared_ptr<settings>& _config)
 
     ROCPROFSYS_CONFIG_SETTING(
         std::string, "ROCPROFSYS_AMD_SMI_METRICS",
-        "amd-smi metrics to collect: " + desc_metrics + jpeg_support + vcn_support +
+        "amd-smi metrics to collect: " + default_metrics + jpeg_support + vcn_support +
             ". " + "An empty value implies 'all' and 'none' suppresses all.",
         "busy, temp, power, mem_usage", "backend", "amd_smi", "rocm", "process_sampling");
 }

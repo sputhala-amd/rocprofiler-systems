@@ -55,8 +55,8 @@ setup_config_check();
 
 struct amd_smi_config_data
 {
-    static unordered_map<uint32_t> gpuID_vcn_support;
-    static unordered_map<uint32_t> gpuID_jpeg_support;
+    static std::unordered_set<uint32_t> gpuID_vcn_support;
+    static std::unordered_set<uint32_t> gpuID_jpeg_support;
 
 private:
     friend bool rocprofsys::amd_smi::setup_config_check();
