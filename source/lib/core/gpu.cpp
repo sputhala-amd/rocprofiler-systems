@@ -203,6 +203,10 @@ add_device_metadata()
 
 uint32_t                             processors::total_processor_count = 0;
 std::vector<amdsmi_processor_handle> processors::processors_list       = {};
+std::vector<bool>                    processors::vcn_activity_supported = {};
+std::vector<bool>                    processors::jpeg_activity_supported = {};
+std::vector<bool>                    processors::vcn_busy_supported = {};
+std::vector<bool>                    processors::jpeg_busy_supported = {};
 
 void
 get_processor_handles()
@@ -246,10 +250,92 @@ get_processor_handles()
                 return;
             }
             processors::processors_list.push_back(processor);
+
+            amdsmi_gpu_metrics_t gpu_metrics;
+            bool vcn_supported = false;
+            bool jpeg_supported = false;
+            bool v_busy_supported = false;
+            bool j_busy_supported = false;
+            ret = amdsmi_get_gpu_metrics_info(processor, &gpu_metrics);
+            if(ret == AMDSMI_STATUS_SUCCESS)
+            {
+                for(const auto& vcn_activity : gpu_metrics.vcn_activity)
+                {
+                    if(vcn_activity != UINT16_MAX)
+                    {
+                        vcn_supported = true;
+                        break;
+                    }
+                }
+                for(const auto& jpeg_activity : gpu_metrics.jpeg_activity)
+                {
+                    if(jpeg_activity != UINT16_MAX)
+                    {
+                        jpeg_supported = true;
+                        break;
+                    }
+                }
+                for(const auto& xcp : gpu_metrics.xcp_stats)
+                {
+                    for(const auto& vcn_busy : xcp.vcn_busy)
+                    {
+                        if(vcn_busy != UINT16_MAX)
+                        {
+                            v_busy_supported = true;
+                            break;
+                        }
+                    }
+                    for(const auto& jpeg_busy : xcp.jpeg_busy)
+                    {
+                        if(jpeg_busy != UINT16_MAX)
+                        {
+                            j_busy_supported = true;
+                            break;
+                        }
+                    }
+                }
+            }
+            processors::vcn_activity_supported.push_back(vcn_supported);
+            processors::jpeg_activity_supported.push_back(jpeg_supported);
+            processors::vcn_busy_supported.push_back(v_busy_supported);
+            processors::jpeg_busy_supported.push_back(j_busy_supported);
         }
     }
     processors::total_processor_count = processors::processors_list.size();
 }
+
+bool
+is_vcn_activity_supported(uint32_t dev_id)
+{
+    if(dev_id >= processors::vcn_activity_supported.size())
+        return false;
+    return processors::vcn_activity_supported[dev_id];
+}
+
+bool
+is_jpeg_activity_supported(uint32_t dev_id)
+{
+    if(dev_id >= processors::jpeg_activity_supported.size())
+        return false;
+    return processors::jpeg_activity_supported[dev_id];
+}
+
+bool
+is_vcn_busy_supported(uint32_t dev_id)
+{
+    if(dev_id >= processors::vcn_busy_supported.size())
+        return false;
+    return processors::vcn_busy_supported[dev_id];
+}
+
+bool
+is_jpeg_busy_supported(uint32_t dev_id)
+{
+    if(dev_id >= processors::jpeg_busy_supported.size())
+        return false;
+    return processors::jpeg_busy_supported[dev_id];
+}
+
 uint32_t
 get_processor_count()
 {
