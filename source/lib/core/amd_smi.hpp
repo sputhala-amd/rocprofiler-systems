@@ -24,8 +24,6 @@
 
 #include "core/timemory.hpp"
 #include <chrono>
-#include <cstdint>
-#include <deque>
 #include <future>
 #include <limits>
 #include <memory>
@@ -33,9 +31,7 @@
 #include <thread>
 #include <tuple>
 #include <type_traits>
-#include <unordered_map>
-#include <unordered_set>
-#include <vector>
+#include <map>
 
 #if ROCPROFSYS_USE_ROCM > 0
 #    include <amd_smi/amdsmi.h>
@@ -55,8 +51,8 @@ setup_config_check();
 
 struct amd_smi_config_data
 {
-    static std::unordered_set<uint32_t> gpuID_vcn_support;
-    static std::unordered_set<uint32_t> gpuID_jpeg_support;
+    static std::set<uint32_t> gpuID_vcn_support;
+    static std::set<uint32_t> gpuID_jpeg_support;
 
 private:
     friend bool rocprofsys::amd_smi::setup_config_check();

@@ -26,15 +26,10 @@
 #include "core/debug.hpp"
 #include "core/gpu.hpp"
 #include "timemory.hpp"
-#include <cassert>
 #include <chrono>
-#include <ios>
-#include <regex>
-#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <sys/resource.h>
-#include <thread>
 
 #if defined(ROCPROFSYS_USE_ROCM) && ROCPROFSYS_USE_ROCM > 0
 namespace rocprofsys
@@ -70,16 +65,14 @@ get_setting_name(std::string _v)
         }()
 }  // namespace
 
-// See hpp for more information
-std::unordered_set<uint32_t> amd_smi_config_data::gpuID_vcn_support  = {};
-std::unordered_set<uint32_t> amd_smi_config_data::gpuID_jpeg_support = {};
+std::set<uint32_t> amd_smi_config_data::gpuID_vcn_support  = {};
+std::set<uint32_t> amd_smi_config_data::gpuID_jpeg_support = {};
 
 bool
 setup_config_check()
 {
     if(!get_use_amd_smi() || !gpu::initialize_amdsmi()) return false;
 
-    // Get processors and activity support
     size_t device_count = gpu::get_processor_count();
     for(size_t i = 0; i < device_count; i++)
     {
