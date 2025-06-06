@@ -31,7 +31,6 @@
 #include <string>
 #include <sys/resource.h>
 
-
 #if defined(ROCPROFSYS_USE_ROCM) && ROCPROFSYS_USE_ROCM > 0
 namespace rocprofsys
 {
@@ -79,16 +78,6 @@ setup_config_check()
     size_t device_count = gpu::get_processor_count();
     for(size_t i = 0; i < device_count; i++)
     {
-        // if(gpu::is_jpeg_activity_supported(i))
-        //     amd_smi_config_data::gpuID_jpeg_activity_support.insert(i);
-        // else if(gpu::is_jpeg_busy_supported(i))
-        //     amd_smi_config_data::gpuID_jpeg_busy_support.insert(i);
-
-        // if(gpu::is_vcn_activity_supported(i))
-        //     amd_smi_config_data::gpuID_vcn_activity_support.insert(i);
-        // else if(gpu::is_vcn_busy_supported(i))
-        //     amd_smi_config_data::gpuID_vcn_busy_support.insert(i);
-
         if(gpu::is_vcn_activity_supported(i) || gpu::is_vcn_busy_supported(i))
             amd_smi_config_data::gpuID_vcn_activity_support.insert(i);
         if(gpu::is_jpeg_activity_supported(i) || gpu::is_jpeg_busy_supported(i))
@@ -104,56 +93,25 @@ config_settings(const std::shared_ptr<settings>& _config)
 
     std::string default_metrics = "busy, temp, power, mem_usage";
     // List of gpu's that support JPEG and VCN activity
-    // As of now, no distinction between busy and activity shown in description
+    // No distinction between busy and activity shown in description
     std::string jpeg_activity_support = "";
-    // std::string jpeg_busy_support     = "";
     std::string vcn_activity_support  = "";
-    // std::string vcn_busy_support      = "";
 
     if(!amd_smi_config_data::gpuID_jpeg_activity_support.empty())
     {
-        // jpeg_activity_support += ", jpeg_activity (GPUs:";
-        // for(const auto& id : amd_smi_config_data::gpuID_jpeg_activity_support)
-        //     jpeg_activity_support += " " + std::to_string(id) + ",";
-        // jpeg_activity_support.pop_back();
-        // jpeg_activity_support += ")";
         jpeg_activity_support += ", jpeg_activity";
     }
 
-    // if(!amd_smi_config_data::gpuID_jpeg_busy_support.empty())
-    // {
-    //     jpeg_busy_support += ", jpeg_busy (GPUs:";
-    //     for(const auto& id : amd_smi_config_data::gpuID_jpeg_busy_support)
-    //         jpeg_busy_support += " " + std::to_string(id) + ",";
-    //     jpeg_busy_support.pop_back();
-    //     jpeg_busy_support += ")";
-    // }
-
     if(!amd_smi_config_data::gpuID_vcn_activity_support.empty())
     {
-        // vcn_activity_support += ", vcn_activity (GPUs:";
-        // for(const auto& id : amd_smi_config_data::gpuID_vcn_activity_support)
-        //     vcn_activity_support += " " + std::to_string(id) + ",";
-        // vcn_activity_support.pop_back();
-        // vcn_activity_support += ")";
         vcn_activity_support += ", vcn_activity";
     }
 
-    // if(!amd_smi_config_data::gpuID_vcn_busy_support.empty())
-    // {
-    //     vcn_busy_support += ", vcn_busy (GPUs:";
-    //     for(const auto& id : amd_smi_config_data::gpuID_vcn_busy_support)
-    //         vcn_busy_support += " " + std::to_string(id) + ",";
-    //     vcn_busy_support.pop_back();
-    //     vcn_busy_support += ")";
-    // }
-
     ROCPROFSYS_CONFIG_SETTING(
         std::string, "ROCPROFSYS_AMD_SMI_METRICS",
-        "amd-smi metrics to collect: " + default_metrics + 
-         jpeg_activity_support + vcn_activity_support + 
-    //     jpeg_busy_support + vcn_busy_support + 
-         ". " + "An empty value implies 'all' and 'none' suppresses all.",
+        "amd-smi metrics to collect: " + default_metrics + jpeg_activity_support +
+            vcn_activity_support + ". " +
+            "An empty value implies 'all' and 'none' suppresses all.",
         "busy, temp, power, mem_usage", "backend", "amd_smi", "rocm", "process_sampling");
 }
 }  // namespace amd_smi
