@@ -33,7 +33,6 @@
 #include <tuple>
 #include <type_traits>
 
-
 #if ROCPROFSYS_USE_ROCM > 0
 #    include <amd_smi/amdsmi.h>
 #endif
