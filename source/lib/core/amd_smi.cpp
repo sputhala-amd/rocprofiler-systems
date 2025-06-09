@@ -26,10 +26,6 @@
 #include "core/debug.hpp"
 #include "core/gpu.hpp"
 #include "timemory.hpp"
-#include <chrono>
-#include <stdexcept>
-#include <string>
-#include <sys/resource.h>
 
 #if defined(ROCPROFSYS_USE_ROCM) && ROCPROFSYS_USE_ROCM > 0
 namespace rocprofsys
