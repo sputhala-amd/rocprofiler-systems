@@ -293,6 +293,7 @@ get_processor_handles()
                             break;
                         }
                     }
+                    if(v_busy_supported && j_busy_supported) break;
                 }
             }
             processors::vcn_activity_supported.push_back(vcn_supported);
