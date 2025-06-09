@@ -31,8 +31,6 @@
 #include <string>
 #include <sys/resource.h>
 
-#define ROCPROFSYS_USE_ROCM 1
-
 #if defined(ROCPROFSYS_USE_ROCM) && ROCPROFSYS_USE_ROCM > 0
 namespace rocprofsys
 {
