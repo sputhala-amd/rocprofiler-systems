@@ -65,47 +65,29 @@ get_setting_name(std::string _v)
         }()
 }  // namespace
 
-std::set<uint32_t> amd_smi_config_data::gpuID_vcn_activity_support  = {};
-std::set<uint32_t> amd_smi_config_data::gpuID_jpeg_activity_support = {};
-// std::set<uint32_t> amd_smi_config_data::gpuID_vcn_busy_support      = {};
-// std::set<uint32_t> amd_smi_config_data::gpuID_jpeg_busy_support     = {};
-
-bool
-setup_config_check()
+void
+config_settings(const std::shared_ptr<settings>& _config)
 {
-    if(!get_use_amd_smi() || !gpu::initialize_amdsmi()) return false;
+    if(!get_use_amd_smi() || !gpu::initialize_amdsmi()) return;
+
+    std::string default_metrics = "busy, temp, power, mem_usage";
+    // No distinction between busy and activity shown in description
+    std::string jpeg_activity_support = "";
+    std::string vcn_activity_support  = "";
+    bool        jpeg_added            = false;
+    bool        vcn_added             = false;
 
     size_t device_count = gpu::get_processor_count();
     for(size_t i = 0; i < device_count; i++)
     {
         if(gpu::is_vcn_activity_supported(i) || gpu::is_vcn_busy_supported(i))
-            amd_smi_config_data::gpuID_vcn_activity_support.insert(i);
+            vcn_added = true;
         if(gpu::is_jpeg_activity_supported(i) || gpu::is_jpeg_busy_supported(i))
-            amd_smi_config_data::gpuID_jpeg_activity_support.insert(i);
-    }
-    return true;
-}
-
-void
-config_settings(const std::shared_ptr<settings>& _config)
-{
-    if(!setup_config_check()) return;
-
-    std::string default_metrics = "busy, temp, power, mem_usage";
-    // List of gpu's that support JPEG and VCN activity
-    // No distinction between busy and activity shown in description
-    std::string jpeg_activity_support = "";
-    std::string vcn_activity_support  = "";
-
-    if(!amd_smi_config_data::gpuID_jpeg_activity_support.empty())
-    {
-        jpeg_activity_support += ", jpeg_activity";
+            jpeg_added = true;
     }
 
-    if(!amd_smi_config_data::gpuID_vcn_activity_support.empty())
-    {
-        vcn_activity_support += ", vcn_activity";
-    }
+    if(jpeg_added) jpeg_activity_support += ", jpeg_activity";
+    if(vcn_added) vcn_activity_support += ", vcn_activity";
 
     ROCPROFSYS_CONFIG_SETTING(
         std::string, "ROCPROFSYS_AMD_SMI_METRICS",
