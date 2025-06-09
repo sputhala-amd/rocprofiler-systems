@@ -31,6 +31,8 @@
 #include <string>
 #include <sys/resource.h>
 
+#define ROCPROFSYS_USE_ROCM 1
+
 #if defined(ROCPROFSYS_USE_ROCM) && ROCPROFSYS_USE_ROCM > 0
 namespace rocprofsys
 {
@@ -74,20 +76,24 @@ config_settings(const std::shared_ptr<settings>& _config)
     // No distinction between busy and activity shown in description
     std::string jpeg_activity_support = "";
     std::string vcn_activity_support  = "";
-    bool        jpeg_added            = false;
-    bool        vcn_added             = false;
 
     size_t device_count = gpu::get_processor_count();
     for(size_t i = 0; i < device_count; i++)
     {
         if(gpu::is_vcn_activity_supported(i) || gpu::is_vcn_busy_supported(i))
-            vcn_added = true;
-        if(gpu::is_jpeg_activity_supported(i) || gpu::is_jpeg_busy_supported(i))
-            jpeg_added = true;
+        {
+            vcn_activity_support += ", vcn_activity";
+            break;
+        }
     }
-
-    if(jpeg_added) jpeg_activity_support += ", jpeg_activity";
-    if(vcn_added) vcn_activity_support += ", vcn_activity";
+    for(size_t i = 0; i < device_count; i++)
+    {
+        if(gpu::is_jpeg_activity_supported(i) || gpu::is_jpeg_busy_supported(i))
+        {
+            jpeg_activity_support += ", jpeg_activity";
+            break;
+        }
+    }
 
     ROCPROFSYS_CONFIG_SETTING(
         std::string, "ROCPROFSYS_AMD_SMI_METRICS",

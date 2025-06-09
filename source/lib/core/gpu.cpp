@@ -277,22 +277,20 @@ get_processor_handles()
                 }
                 for(const auto& xcp : gpu_metrics.xcp_stats)
                 {
-                    for(const auto& vcn_busy : xcp.vcn_busy)
+                    if(!v_busy_supported)
                     {
-                        if(vcn_busy != UINT16_MAX)
-                        {
-                            v_busy_supported = true;
-                            break;
-                        }
+                        v_busy_supported =
+                            std::any_of(std::begin(xcp.vcn_busy), std::end(xcp.vcn_busy),
+                                        [](uint16_t val) { return val != UINT16_MAX; });
                     }
-                    for(const auto& jpeg_busy : xcp.jpeg_busy)
+
+                    if(!j_busy_supported)
                     {
-                        if(jpeg_busy != UINT16_MAX)
-                        {
-                            j_busy_supported = true;
-                            break;
-                        }
+                        j_busy_supported = std::any_of(
+                            std::begin(xcp.jpeg_busy), std::end(xcp.jpeg_busy),
+                            [](uint16_t val) { return val != UINT16_MAX; });
                     }
+
                     if(v_busy_supported && j_busy_supported) break;
                 }
             }
