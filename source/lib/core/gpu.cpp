@@ -251,7 +251,7 @@ get_processor_handles()
             }
             processors::processors_list.push_back(processor);
 
-            // AMD SMI will not report VCN_activity and JPEG_activity, 
+            // AMD SMI will not report VCN_activity and JPEG_activity,
             // if VCN_busy or JPEG_busy fields are available.
             amdsmi_gpu_metrics_t gpu_metrics;
             bool                 vcn_supported    = false;

@@ -437,9 +437,11 @@ data::post_process(uint32_t _dev_id)
                 if(_settings.vcn_activity)
                 {
                     if(itr.m_xcp_metrics.empty())
+                    {
                         ROCPROFSYS_VERBOSE(
                             1, "No VCN activity data collected from device %u\n",
                             _dev_id);
+                    }
                     else if(gpu::is_vcn_activity_supported(_dev_id))
                     {
                         // For VCN activity, use simple indexing
@@ -466,9 +468,11 @@ data::post_process(uint32_t _dev_id)
                 if(_settings.jpeg_activity)
                 {
                     if(itr.m_xcp_metrics.empty())
+                    {
                         ROCPROFSYS_VERBOSE(
                             1, "No JPEG activity data collected from device %u\n",
                             _dev_id);
+                    }
                     else if(gpu::is_jpeg_activity_supported(_dev_id))
                     {
                         // For JPEG activity, use simple indexing
