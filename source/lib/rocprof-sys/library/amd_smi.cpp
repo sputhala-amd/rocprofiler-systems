@@ -143,6 +143,8 @@ data::sample(uint32_t _dev_id)
     auto _ts = tim::get_clock_real_now<size_t, std::nano>();
     assert(_ts < std::numeric_limits<int64_t>::max());
     amdsmi_gpu_metrics_t _gpu_metrics;
+    bool                 is_vcn_or_jpeg_activity_enabled =
+        get_settings(m_dev_id).vcn_activity || get_settings(m_dev_id).jpeg_activity;
 
     auto _state = get_state().load();
 
@@ -184,72 +186,55 @@ data::sample(uint32_t _dev_id)
 #endif
     ROCPROFSYS_AMDSMI_GET(get_settings(m_dev_id).mem_usage, amdsmi_get_gpu_memory_usage,
                           sample_handle, AMDSMI_MEM_TYPE_VRAM, &m_mem_usage);
-    ROCPROFSYS_AMDSMI_GET(get_settings(m_dev_id).vcn_activity,
-                          amdsmi_get_gpu_metrics_info, sample_handle, &_gpu_metrics);
-    ROCPROFSYS_AMDSMI_GET(get_settings(m_dev_id).jpeg_activity,
-                          amdsmi_get_gpu_metrics_info, sample_handle, &_gpu_metrics);
+    ROCPROFSYS_AMDSMI_GET(is_vcn_or_jpeg_activity_enabled, amdsmi_get_gpu_metrics_info,
+                          sample_handle, &_gpu_metrics);
 
-    // Helper lambda to fill busy metrics from a source array
-    auto fill_busy_metrics = [](auto& dest, const auto& src) {
-        for(const auto& val : src)
-        {
-            if(val != UINT16_MAX) dest.push_back(val);
-        }
-    };
-
-    if(get_settings(m_dev_id).vcn_activity)
+    // Process metrics if either VCN or JPEG activity is enabled
+    if(is_vcn_or_jpeg_activity_enabled)
     {
-        if(gpu::is_vcn_activity_supported(_dev_id))
+        // Helper lambda to fill busy metrics from a source array
+        auto fill_busy_metrics = [](auto& dest, const auto& src) {
+            for(const auto& val : src)
+            {
+                if(val != UINT16_MAX) dest.push_back(val);
+            }
+        };
+
+        if(gpu::is_vcn_activity_supported(_dev_id) &&
+           gpu::is_jpeg_activity_supported(_dev_id))
         {
+            // Both VCN and JPEG are supported - create one entry with both metrics
             xcp_metrics_t metrics;
             fill_busy_metrics(metrics.vcn_busy, _gpu_metrics.vcn_activity);
-            m_xcp_metrics.push_back(metrics);
+            fill_busy_metrics(metrics.jpeg_busy, _gpu_metrics.jpeg_activity);
+            if(!metrics.vcn_busy.empty() || !metrics.jpeg_busy.empty())
+                m_xcp_metrics.push_back(metrics);
+        }
+        else if(gpu::is_vcn_activity_supported(_dev_id))
+        {
+            // Only VCN is supported
+            xcp_metrics_t metrics;
+            fill_busy_metrics(metrics.vcn_busy, _gpu_metrics.vcn_activity);
+            if(!metrics.vcn_busy.empty()) m_xcp_metrics.push_back(metrics);
+        }
+        else if(gpu::is_jpeg_activity_supported(_dev_id))
+        {
+            // Only JPEG is supported
+            xcp_metrics_t metrics;
+            fill_busy_metrics(metrics.jpeg_busy, _gpu_metrics.jpeg_activity);
+            if(!metrics.jpeg_busy.empty()) m_xcp_metrics.push_back(metrics);
         }
         else
         {
+            // Neither is supported - use XCP stats
+            // Each XCP gets one entry with both its VCN and JPEG metrics
             for(const auto& xcp : _gpu_metrics.xcp_stats)
             {
                 xcp_metrics_t metrics;
                 fill_busy_metrics(metrics.vcn_busy, xcp.vcn_busy);
-                if(!metrics.vcn_busy.empty()) m_xcp_metrics.push_back(metrics);
-            }
-        }
-    }
-
-    if(get_settings(m_dev_id).jpeg_activity)
-    {
-        if(gpu::is_jpeg_activity_supported(_dev_id))
-        {
-            xcp_metrics_t metrics;
-            fill_busy_metrics(metrics.jpeg_busy, _gpu_metrics.jpeg_activity);
-            if(m_xcp_metrics.empty())
-                m_xcp_metrics.push_back(metrics);
-            else
-                m_xcp_metrics[0].jpeg_busy = std::move(metrics.jpeg_busy);
-        }
-        else
-        {
-            // If JPEG activity is not supported, use jpeg_busy values (multiple XCPs)
-            if(m_xcp_metrics.empty())
-            {
-                // If no metrics exist yet, create new ones for each XCP
-                for(const auto& xcp : _gpu_metrics.xcp_stats)
-                {
-                    xcp_metrics_t metrics;
-                    fill_busy_metrics(metrics.jpeg_busy, xcp.jpeg_busy);
-                    if(!metrics.jpeg_busy.empty()) m_xcp_metrics.push_back(metrics);
-                }
-            }
-            else
-            {
-                // Add JPEG busy to existing metrics (one per XCP)
-                for(size_t i = 0;
-                    i < m_xcp_metrics.size() && i < std::size(_gpu_metrics.xcp_stats);
-                    ++i)
-                {
-                    fill_busy_metrics(m_xcp_metrics[i].jpeg_busy,
-                                      _gpu_metrics.xcp_stats[i].jpeg_busy);
-                }
+                fill_busy_metrics(metrics.jpeg_busy, xcp.jpeg_busy);
+                if(!metrics.vcn_busy.empty() || !metrics.jpeg_busy.empty())
+                    m_xcp_metrics.push_back(metrics);
             }
         }
     }
@@ -556,6 +541,7 @@ data::post_process(uint32_t _dev_id)
             if(_settings.jpeg_activity && !itr.m_xcp_metrics.empty())
             {
                 uint64_t idx = _idx.at(7);
+                // Calculate total VCN metrics to properly offset JPEG metrics index
                 if(_settings.vcn_activity)
                 {
                     size_t total_vcn_metrics = 0;
