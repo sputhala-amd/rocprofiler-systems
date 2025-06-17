@@ -87,9 +87,7 @@ _amdsmi_is_initialized()
 bool
 amdsmi_init()
 {
-    static std::once_flag init_flag;  // Ensures initialization happens only once
-    static bool           is_initialized = false;
-    auto                  _amdsmi_init   = []() {
+    auto _amdsmi_init = []() {
         try
         {
             // Currently, only AMDSMI_INIT_AMD_GPUS is supported

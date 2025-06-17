@@ -143,8 +143,7 @@ data::sample(uint32_t _dev_id)
     auto _ts = tim::get_clock_real_now<size_t, std::nano>();
     assert(_ts < std::numeric_limits<int64_t>::max());
     amdsmi_gpu_metrics_t _gpu_metrics;
-    bool                 is_vcn_or_jpeg_activity_enabled =
-        get_settings(m_dev_id).vcn_activity || get_settings(m_dev_id).jpeg_activity;
+    bool                 is_vcn_or_jpeg_activity_enabled = false;
 
     auto _state = get_state().load();
 
@@ -186,6 +185,8 @@ data::sample(uint32_t _dev_id)
 #endif
     ROCPROFSYS_AMDSMI_GET(get_settings(m_dev_id).mem_usage, amdsmi_get_gpu_memory_usage,
                           sample_handle, AMDSMI_MEM_TYPE_VRAM, &m_mem_usage);
+    is_vcn_or_jpeg_activity_enabled =
+        get_settings(m_dev_id).vcn_activity || get_settings(m_dev_id).jpeg_activity;
     ROCPROFSYS_AMDSMI_GET(is_vcn_or_jpeg_activity_enabled, amdsmi_get_gpu_metrics_info,
                           sample_handle, &_gpu_metrics);
 
@@ -554,7 +555,7 @@ data::post_process(uint32_t _dev_id)
                         for(const auto& temp : itr.m_xcp_metrics)
                             total_vcn_metrics += temp.vcn_busy.size();
                     }
-                    idx += (total_vcn_metrics - 1);
+                    if(total_vcn_metrics > 0) idx += (total_vcn_metrics - 1);
                 }
 
                 if(gpu::is_jpeg_activity_supported(_dev_id))
