@@ -142,3 +142,14 @@ foreach(_EXAMPLE all2all allgather allreduce bcast reduce scatter-gather send-re
         RUN_ARGS 30
         ENVIRONMENT "${_mpip_${_EXAMPLE}_environment}")
 endforeach()
+
+rocprofiler_systems_add_test(
+    SKIP_RUNTIME SKIP_SAMPLING
+    NAME "mpi-hello-fortran"
+    TARGET mpi-hello-fortran
+    MPI ON
+    NUM_PROCS 2
+    LABELS "fortran"
+    REWRITE_ARGS -e -v 2 --label file line --min-instructions 0
+    ENVIRONMENT "${_mpip_environment}"
+)

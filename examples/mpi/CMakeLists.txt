@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.18.4 FATAL_ERROR)
 
-project(rocprofiler-systems-mpi-examples LANGUAGES C CXX)
+project(rocprofiler-systems-mpi-examples LANGUAGES C CXX Fortran)
 
 if(ROCPROFSYS_DISABLE_EXAMPLES)
     get_filename_component(_DIR ${CMAKE_CURRENT_LIST_DIR} NAME)
@@ -35,6 +35,13 @@ target_link_libraries(
         $<TARGET_NAME_IF_EXISTS:rocprofiler-systems::rocprofiler-systems-compile-options>)
 target_compile_options(mpi-c-interface-library INTERFACE -Wno-double-promotion)
 
+add_library(mpi-fortran-interface-library INTERFACE)
+target_link_libraries(
+    mpi-fortran-interface-library
+    INTERFACE
+        Threads::Threads MPI::MPI_Fortran
+        $<TARGET_NAME_IF_EXISTS:rocprofiler-systems::rocprofiler-systems-compile-options>)
+
 add_executable(mpi-allgather allgather.c)
 target_link_libraries(mpi-allgather PRIVATE mpi-c-interface-library)
 
@@ -56,6 +63,9 @@ target_link_libraries(mpi-send-recv PRIVATE mpi-c-interface-library)
 add_executable(mpi-allreduce allreduce.c)
 target_link_libraries(mpi-allreduce PRIVATE mpi-c-interface-library m)
 
+add_executable(mpi-hello-fortran mpi_hello.f)
+target_link_libraries(mpi-hello-fortran PRIVATE mpi-fortran-interface-library)
+
 set(CMAKE_BUILD_TYPE "Release")
 
 add_library(mpi-cxx-interface-library INTERFACE)
@@ -71,7 +81,7 @@ target_link_libraries(mpi-example PRIVATE mpi-cxx-interface-library)
 if(ROCPROFSYS_INSTALL_EXAMPLES)
     install(
         TARGETS mpi-example mpi-allgather mpi-bcast mpi-all2all mpi-reduce
-                mpi-scatter-gather mpi-send-recv
+                mpi-scatter-gather mpi-send-recv mpi-hello-fortran
         DESTINATION bin
         COMPONENT rocprofiler-systems-examples)
 endif()
