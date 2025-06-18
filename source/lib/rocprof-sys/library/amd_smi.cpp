@@ -393,17 +393,18 @@ data::post_process(uint32_t _dev_id)
                     return JOIN(" ", "GPU", _v, JOIN("", '[', _dev_id, ']'), "(S)");
                 };
                 auto addendum_blk = [&](std::size_t _i, const char* _metric,
-                                        bool is_busy = false, std::size_t xcp_idx = 0) {
-                    if(is_busy)
+                                        std::size_t xcp_idx = SIZE_MAX) {
+                    if(xcp_idx != SIZE_MAX)
                     {
                         return JOIN(" ", "GPU", JOIN("", '[', _dev_id, ']'), _metric,
                                     JOIN("", "XCP_", xcp_idx, ": [", (_i < 10 ? "0" : ""),
-                                         _i, ']'));
+                                         _i, ']'),
+                                    "(S)");
                     }
                     else
                     {
                         return JOIN(" ", "GPU", JOIN("", '[', _dev_id, ']'), _metric,
-                                    JOIN("", "[", (_i < 10 ? "0" : ""), _i, ']'));
+                                    JOIN("", "[", (_i < 10 ? "0" : ""), _i, ']'), "(S)");
                     }
                 };
 
@@ -445,8 +446,7 @@ data::post_process(uint32_t _dev_id)
                                 i < std::size(itr.m_xcp_metrics[xcp].vcn_busy); ++i)
                             {
                                 counter_track::emplace(
-                                    _dev_id, addendum_blk(i, "VCN Activity", true, xcp),
-                                    "%");
+                                    _dev_id, addendum_blk(i, "VCN Activity", xcp), "%");
                             }
                         }
                     }
@@ -475,8 +475,7 @@ data::post_process(uint32_t _dev_id)
                             for(std::size_t i = 0;
                                 i < std::size(itr.m_xcp_metrics[xcp].jpeg_busy); ++i)
                                 counter_track::emplace(
-                                    _dev_id, addendum_blk(i, "JPEG Activity", true, xcp),
-                                    "%");
+                                    _dev_id, addendum_blk(i, "JPEG Activity", xcp), "%");
                         }
                     }
                 }
