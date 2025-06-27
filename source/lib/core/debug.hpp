@@ -378,8 +378,8 @@ as_hex<void*>(void*, size_t);
     {                                                                                    \
         char _msg_buffer[ROCPROFSYS_DEBUG_BUFFER_LEN];                                   \
         bool _print_backtrace = ::rocprofsys::get_debug() ||                             \
-                      ::rocprofsys::get_verbose() >= 2 ||                                \
-                      ::rocprofsys::get_is_continuous_integration();                     \
+                                ::rocprofsys::get_verbose() >= 2 ||                      \
+                                ::rocprofsys::get_is_continuous_integration();           \
         snprintf(_msg_buffer, ROCPROFSYS_DEBUG_BUFFER_LEN,                               \
                  "[rocprof-sys][%i][%li][%s]%s", ROCPROFSYS_DEBUG_PROCESS_IDENTIFIER,    \
                  ROCPROFSYS_DEBUG_THREAD_IDENTIFIER, ROCPROFSYS_FUNCTION,                \
