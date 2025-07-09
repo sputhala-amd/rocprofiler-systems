@@ -413,7 +413,8 @@ pthread_create_gotcha::shutdown()
             if(internal_native_handles.count(itr) != 0) continue;
 
             bool                         has_bundle = false;
-            std::unique_lock<std::mutex> _lk{ *bundles_mutex };
+            std::unique_lock<std::mutex> _bundle_lk{ *bundles_mutex };
+            const auto& thread_info = thread_info::get(itr);
             // Check if this thread has a corresponding bundle entry
             // With the new gotcha update more external threads are tracked
             // but we only want to send signals to threads that have bundles
@@ -421,7 +422,6 @@ pthread_create_gotcha::shutdown()
             {
                 try
                 {
-                    const auto& thread_info = thread_info::get(itr);
                     if(thread_info && thread_info->index_data &&
                        bundle_itr.first == thread_info->index_data->sequent_value)
                     {
@@ -434,8 +434,7 @@ pthread_create_gotcha::shutdown()
                 }
             }
 
-            if(has_bundle && pthread_equal(pthread_self(), itr) == 0 &&
-               pthread_equal(itr, itr) != 0)
+            if(has_bundle && pthread_equal(pthread_self(), itr) == 0)
             {
                 ::pthread_kill(itr, shutdown_signal_v);
                 ++_expected_shutdown_signals_delivered;
