@@ -115,13 +115,14 @@ query_rocm_agents()
 {
     size_t _dev_cnt = 0;
 #if ROCPROFSYS_USE_ROCM > 0
-    auto iterator = [](rocprofiler_agent_version_t /*version*/, const void** agents,
-                       size_t num_agents, void* user_data) -> rocprofiler_status_t {
-        auto& _agent_mngr = rocpd::agent_manager::get_instance();
+    auto iterator = []([[maybe_unused]] rocprofiler_agent_version_t version,
+                       const void** agents, size_t num_agents,
+                       [[maybe_unused]] void* user_data) -> rocprofiler_status_t {
+        auto& _agent_manager = rocpd::agent_manager::get_instance();
         for(size_t i = 0; i < num_agents; ++i)
         {
             const auto* _agent = static_cast<const rocprofiler_agent_v0_t*>(agents[i]);
-            _agent_mngr.insert_agent(_agent);
+            _agent_manager.insert_agent(_agent);
         }
         return ROCPROFILER_STATUS_SUCCESS;
     };

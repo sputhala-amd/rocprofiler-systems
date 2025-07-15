@@ -564,6 +564,12 @@ tool_tracing_callback(rocprofiler_callback_tracing_record_t record,
                                     record.kind);
                 break;
             }
+            default:
+            {
+                ROCPROFSYS_CI_ABORT(true, "Unhandled callback record kind: %i\n",
+                                    record.kind);
+                break;
+            }
         }
     }
     else if(record.phase == ROCPROFILER_CALLBACK_PHASE_EXIT)
@@ -661,6 +667,12 @@ tool_tracing_callback(rocprofiler_callback_tracing_record_t record,
 #endif
             {
                 ROCPROFSYS_CI_ABORT(true, "unhandled callback record kind: %i\n",
+                                    record.kind);
+                break;
+            }
+            default:
+            {
+                ROCPROFSYS_CI_ABORT(true, "Unhandled callback record kind: %i\n",
                                     record.kind);
                 break;
             }
@@ -956,10 +968,10 @@ counter_record_callback(rocprofiler_dispatch_counting_service_data_t dispatch_da
             ROCPROFSYS_CONDITIONAL_ABORT_F(
                 !_agent, "unable to find tool agent for agent (id=%zu)\n",
                 _agent_id.handle);
-            ROCPROFSYS_CONDITIONAL_ABORT_F(
-                !_info,
-                "unable to find counter info for counter (id=%zu) on agent (id=%zu)\n",
-                itr.first.handle, _agent_id.handle);
+            ROCPROFSYS_CONDITIONAL_ABORT_F(!_info,
+                                           "unable to find counter info for counter "
+                                           "(id=%zu) on agent (id=%zu)\n",
+                                           itr.first.handle, _agent_id.handle);
 
             auto _dev_id = static_cast<uint32_t>(_agent->device_id);
 
@@ -1132,8 +1144,8 @@ tool_init(rocprofiler_client_finalize_t fini_func, void* user_data)
 
         // ROCPROFILER_CALL(rocprofiler_configure_external_correlation_id_request_service(
         //     _data->primary_ctx, external_corr_id_request_kinds.data(),
-        //     external_corr_id_request_kinds.size(), external_correlation_id_callback,
-        //     _data));
+        //     external_corr_id_request_kinds.size(),
+        //     external_correlation_id_callback, _data));
     }
 
     if(_buffered_domain.count(ROCPROFILER_BUFFER_TRACING_MEMORY_COPY) > 0)
@@ -1198,8 +1210,9 @@ tool_init(rocprofiler_client_finalize_t fini_func, void* user_data)
         }
     }
 
-    // throwaway context for handling the profiler control API. If primary_ctx were used,
-    // we would get profiler pause callback but never get profiler resume callback
+    // throwaway context for handling the profiler control API. If primary_ctx were
+    // used, we would get profiler pause callback but never get profiler resume
+    // callback
     {
         auto _local_ctx = rocprofiler_context_id_t{ 0 };
         ROCPROFILER_CALL(rocprofiler_create_context(&_local_ctx));
@@ -1210,8 +1223,8 @@ tool_init(rocprofiler_client_finalize_t fini_func, void* user_data)
 
     if(!is_valid(_data->primary_ctx))
     {
-        // notify rocprofiler that initialization failed and all the contexts, buffers,
-        // etc. created should be ignored
+        // notify rocprofiler that initialization failed and all the contexts,
+        // buffers, etc. created should be ignored
         return -1;
     }
 
