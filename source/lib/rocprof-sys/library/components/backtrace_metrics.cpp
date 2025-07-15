@@ -453,23 +453,23 @@ rocpd_process_backtrace_metrics_events(const uint32_t device_id, uint64_t timest
     auto  base_id =
         agent_mngr.get_agent_by_id(device_id, ROCPROFILER_AGENT_TYPE_CPU).base_id;
 
-    auto insert_event_and_sample = [&](const char* name, double value) {
-        data_processor.insert_pmc_event(event_id, base_id, name, value);
+    auto insert_event_and_sample = [&](const char* name, double _value) {
+        data_processor.insert_pmc_event(event_id, base_id, name, _value);
         data_processor.insert_sample(name, timestamp, event_id);
     };
 
     if constexpr(std::is_same_v<Category, category::thread_hardware_counter>)
     {
         auto        _hw_cnt_labels = *get_papi_labels(_tid);
-        const auto& hw_counters =
+        const auto& _hw_counters =
             static_cast<backtrace_metrics::hw_counter_data_t>(value);
-        for(size_t i = 0; i < _hw_cnt_labels.size() && i < hw_counters.size(); ++i)
+        for(size_t i = 0; i < _hw_cnt_labels.size() && i < _hw_counters.size(); ++i)
         {
             std::string _desc = tim::papi::get_event_info(_hw_cnt_labels[i]).short_descr;
             if(_desc.empty()) _desc = _hw_cnt_labels[i];
             std::string track_name = JOIN(' ', "Thread", _desc, _tid_name, "(S)");
 
-            insert_event_and_sample(track_name.c_str(), hw_counters.at(i));
+            insert_event_and_sample(track_name.c_str(), _hw_counters.at(i));
         }
     }
     else

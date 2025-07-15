@@ -128,36 +128,37 @@ public:
         return [stmt, query, this](Values... value) {
             std::lock_guard lock{ _mutex };
             int             position   = 1;
-            auto            bind_value = [&](auto value) {
-                using T = decltype(value);
+            auto            bind_value = [&](auto _value) {
+                using T = decltype(_value);
                 if constexpr(std::is_same_v<T, int32_t> || std::is_same_v<T, uint32_t>)
                 {
                     validate_sqlite3_result(
-                        sqlite3_bind_int(stmt.get(), position, value), query.c_str(),
+                        sqlite3_bind_int(stmt.get(), position, _value), query.c_str(),
                         "Failed to bind int32_t/uint32_t! Position: ", position,
-                        ", Value: ", value);
+                        ", Value: ", _value);
                 }
                 else if constexpr(std::is_same_v<T, int64_t> ||
                                   std::is_same_v<T, uint64_t>)
                 {
                     validate_sqlite3_result(
-                        sqlite3_bind_int64(stmt.get(), position, value), query.c_str(),
+                        sqlite3_bind_int64(stmt.get(), position, _value), query.c_str(),
                         "Failed to bind int64_t/uint64_t! Position: ", position,
-                        ", Value: ", value);
+                        ", Value: ", _value);
                 }
                 else if constexpr(std::is_floating_point_v<T>)
                 {
                     validate_sqlite3_result(
-                        sqlite3_bind_double(stmt.get(), position, value), query.c_str(),
+                        sqlite3_bind_double(stmt.get(), position, _value), query.c_str(),
                         "Failed to bind double! Position: ", position,
-                        ", Value: ", value);
+                        ", Value: ", _value);
                 }
                 else if constexpr(common::traits::is_string_literal_v<std::decay_t<T>>)
                 {
-                    validate_sqlite3_result(
-                        sqlite3_bind_text(stmt.get(), position, value, -1, SQLITE_STATIC),
-                        query.c_str(), "Failed to bind text! Position: ", position,
-                        ", Value: ", value);
+                    validate_sqlite3_result(sqlite3_bind_text(stmt.get(), position,
+                                                                         _value, -1, SQLITE_STATIC),
+                                                       query.c_str(),
+                                                       "Failed to bind text! Position: ", position,
+                                                       ", Value: ", _value);
                 }
                 else
                 {
