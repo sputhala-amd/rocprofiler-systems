@@ -80,7 +80,9 @@
 #include <timemory/utility/join.hpp>
 #include <timemory/utility/procfs/maps.hpp>
 
-#include <rocprofiler-sdk/agent.h>
+#if ROCPROFSYS_USE_ROCM > 0
+#    include <rocprofiler-sdk/agent.h>
+#endif
 
 #include <atomic>
 #include <chrono>

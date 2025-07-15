@@ -36,6 +36,7 @@ agent_manager::get_instance()
     return instance;
 }
 
+#if ROCPROFSYS_USE_ROCM > 0
 void
 agent_manager::insert_agent(const rocprofiler_agent_v0_t* _agent)
 {
@@ -109,6 +110,8 @@ agent_manager::get_agent_by_handle(size_t device_handle) const
     }
     return **_agent;
 }
+
+#endif
 
 std::vector<std::shared_ptr<agent>>
 agent_manager::get_agents_by_type(rocprofiler_agent_type_t type) const
