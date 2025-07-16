@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "library/cpu_freq.hpp"
+#include "core/agent.hpp"
 #include "core/agent_manager.hpp"
 #include "core/common.hpp"
 #include "core/config.hpp"
@@ -159,7 +160,7 @@ rocpd_initialize_cpu_freq_pmc(size_t dev_id)
     const auto* TARGET_ARCH      = "CPU";
 
     auto& agent_mngr = rocpd::agent_manager::get_instance();
-    auto base_id = agent_mngr.get_agent_by_id(dev_id, ROCPROFILER_AGENT_TYPE_CPU).base_id;
+    auto  base_id    = agent_mngr.get_agent_by_id(dev_id, rocpd::CPU).base_id;
 
     do_for_enabled_cpus([&](size_t cpu_id) {
         data_processor.insert_pmc_description(
@@ -223,8 +224,7 @@ rocpd_process_cpu_usage_events(const uint32_t device_id, uint64_t timestamp,
     auto  event_id = data_processor.insert_event(ROCPROFSYS_CATEGORY_CPU_FREQ, 0, 0, 0);
 
     auto& agent_mngr = rocpd::agent_manager::get_instance();
-    auto  base_id =
-        agent_mngr.get_agent_by_id(device_id, ROCPROFILER_AGENT_TYPE_CPU).base_id;
+    auto  base_id    = agent_mngr.get_agent_by_id(device_id, rocpd::CPU).base_id;
 
     auto insert_event_and_sample = [&](const char* name, double value) {
         data_processor.insert_pmc_event(event_id, base_id, name, value);
@@ -364,8 +364,8 @@ post_process()
         // agents seems to be assigned per device basis not per core.
         // TODO: `get_enabled_cpus()` should be fixed in the future to align with GPU
         // implementation.
-        auto cpu_agents = rocpd::agent_manager::get_instance().get_agents_by_type(
-            ROCPROFILER_AGENT_TYPE_CPU);
+        auto cpu_agents =
+            rocpd::agent_manager::get_instance().get_agents_by_type(rocpd::CPU);
         for(auto& agent : cpu_agents)
         {
             rocpd_initialize_cpu_freq_pmc(agent->device_id);

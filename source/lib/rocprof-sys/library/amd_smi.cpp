@@ -26,11 +26,11 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS WITH
 // THE SOFTWARE.
 
+#include "core/agent.hpp"
 #if defined(NDEBUG)
 #    undef NDEBUG
 #endif
 
-#include "library/amd_smi.hpp"
 #include "core/agent_manager.hpp"
 #include "core/common.hpp"
 #include "core/components/fwd.hpp"
@@ -41,6 +41,7 @@
 #include "core/perfetto.hpp"
 #include "core/rocpd/data_processor.hpp"
 #include "core/state.hpp"
+#include "library/amd_smi.hpp"
 #include "library/runtime.hpp"
 #include "library/thread_info.hpp"
 
@@ -123,7 +124,7 @@ rocpd_initialize_smi_pmc(size_t gpu_id)
     const auto* TARGET_ARCH      = "GPU";
 
     auto& agent_mngr = rocpd::agent_manager::get_instance();
-    auto base_id = agent_mngr.get_agent_by_id(gpu_id, ROCPROFILER_AGENT_TYPE_GPU).base_id;
+    auto  base_id    = agent_mngr.get_agent_by_id(gpu_id, rocpd::GPU).base_id;
 
     data_processor.insert_pmc_description(
         ni.id, getpid(), base_id, TARGET_ARCH, EVENT_CODE, INSTANCE_ID,
@@ -161,8 +162,7 @@ rocpd_process_smi_pmc_events(const uint32_t device_id, const amd_smi::settings& 
     auto  event_id = data_processor.insert_event(ROCPROFSYS_CATEGORY_AMD_SMI, 0, 0, 0);
 
     auto& agent_mngr = rocpd::agent_manager::get_instance();
-    auto  base_id =
-        agent_mngr.get_agent_by_id(device_id, ROCPROFILER_AGENT_TYPE_GPU).base_id;
+    auto  base_id    = agent_mngr.get_agent_by_id(device_id, rocpd::GPU).base_id;
 
     auto insert_event_and_sample = [&](bool enabled, const char* name, double value) {
         if(!enabled) return;

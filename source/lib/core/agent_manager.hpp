@@ -27,16 +27,6 @@
 
 #include "agent.hpp"
 
-#if ROCPROFSYS_USE_ROCM <= 0
-typedef enum rocprofiler_agent_type_t  // NOLINT(performance-enum-size)
-{
-    ROCPROFILER_AGENT_TYPE_NONE = 0,  ///< Agent type is unknown
-    ROCPROFILER_AGENT_TYPE_CPU,       ///< Agent type is a CPU
-    ROCPROFILER_AGENT_TYPE_GPU,       ///< Agent type is a GPU
-    ROCPROFILER_AGENT_TYPE_LAST,
-} rocprofiler_agent_type_t;
-#endif
-
 namespace rocprofsys
 {
 
@@ -53,16 +43,12 @@ struct agent_manager
     agent_manager& operator=(agent_manager&&)      = delete;
     ~agent_manager()                               = default;
 
-#if ROCPROFSYS_USE_ROCM > 0
-    void         insert_agent(const rocprofiler_agent_v0_t* agent);
-    const agent& get_agent_by_id(size_t device_id, rocprofiler_agent_type_t type) const;
-    const agent& get_agent_by_handle(size_t                   device_id,
-                                     rocprofiler_agent_type_t type) const;
+    void         insert_agent(agent& agent);
+    const agent& get_agent_by_id(size_t device_id, agent_type type) const;
+    const agent& get_agent_by_handle(size_t device_id, agent_type type) const;
     const agent& get_agent_by_handle(size_t device_handle) const;
-#endif
 
-    std::vector<std::shared_ptr<agent>> get_agents_by_type(
-        rocprofiler_agent_type_t type) const;
+    std::vector<std::shared_ptr<agent>> get_agents_by_type(agent_type type) const;
 
     std::vector<std::shared_ptr<agent>> get_agents() const;
 

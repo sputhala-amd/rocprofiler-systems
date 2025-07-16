@@ -27,12 +27,14 @@
 #include "api.hpp"
 #include "common/setup.hpp"
 #include "common/static_object.hpp"
+#include "core/agent.hpp"
 #include "core/agent_manager.hpp"
 #include "core/categories.hpp"
 #include "core/components/fwd.hpp"
 #include "core/concepts.hpp"
 #include "core/config.hpp"
 #include "core/constraint.hpp"
+#include "core/cpu.hpp"
 #include "core/debug.hpp"
 #include "core/defines.hpp"
 #include "core/dynamic_library.hpp"
@@ -349,14 +351,19 @@ rocprofsys_preinit_rocpd()
     for(const auto& rocpd_agent : agents)
     {
         auto _base_id = rocpd::data_processor::get_instance().insert_agent(
-            n_info.id, getpid(),
-            ((rocpd_agent->agent->type == ROCPROFILER_AGENT_TYPE_GPU) ? "GPU" : "CPU"),
-            rocpd_agent->agent->node_id, rocpd_agent->agent->logical_node_id,
-            rocpd_agent->agent->logical_node_type_id, rocpd_agent->agent->device_id,
-            rocpd_agent->agent->name, rocpd_agent->agent->model_name,
-            rocpd_agent->agent->vendor_name, rocpd_agent->agent->product_name, "");
+            n_info.id, getpid(), ((rocpd_agent->type == rocpd::GPU) ? "GPU" : "CPU"),
+            rocpd_agent->node_id, rocpd_agent->logical_node_id,
+            rocpd_agent->logical_node_type_id, rocpd_agent->id, rocpd_agent->name.c_str(),
+            rocpd_agent->model_name.c_str(), rocpd_agent->vendor_name.c_str(),
+            rocpd_agent->product_name.c_str(), "");
         rocpd_agent->base_id = _base_id;
     }
+}
+
+void
+rocprofsys_preinit_cpu_agents()
+{
+    cpu::query_cpu_agents();
 }
 
 void
@@ -522,6 +529,10 @@ rocprofsys_init_tooling_hidden(void)
     auto _dtor = scope::destructor{ []() {
         // if set to finalized, don't continue
         if(get_state() > State::Active) return;
+
+#if !(ROCPROFSYS_USE_ROCM > 0)
+        rocprofsys_preinit_cpu_agents();
+#endif
         if(get_use_rocpd()) rocprofsys_preinit_rocpd();
 
         if(get_use_process_sampling())

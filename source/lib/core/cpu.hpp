@@ -1,6 +1,6 @@
 // MIT License
 //
-// Copyright (c) 2025 Advanced Micro Devices, Inc. All Rights Reserved.
+// Copyright (c) 2022-2025 Advanced Micro Devices, Inc. All Rights Reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -21,45 +21,37 @@
 // SOFTWARE.
 
 #pragma once
-
-#include <cstddef>
-#include <cstdint>
 #include <string>
-
-#if ROCPROFSYS_USE_ROCM > 0
-#    include <amd_smi/amdsmi.h>
-#    include <rocprofiler-sdk/agent.h>
-#endif
+#include <vector>
 
 namespace rocprofsys
 {
-namespace rocpd
+namespace cpu
 {
 
-enum agent_type : uint8_t
+struct cpu_info
 {
-    CPU,  ///< Agent type is a CPU
-    GPU   ///< Agent type is a GPU
+    long        processor   = -1;
+    long        family      = -1;
+    long        model       = -1;
+    long        physical_id = -1;
+    long        core_id     = -1;
+    long        apicid      = -1;
+    std::string vendor_id   = {};
+    std::string model_name  = {};
 };
 
-struct agent
-{
-    agent_type  type;
-    uint64_t    id;
-    uint32_t    node_id;
-    int32_t     logical_node_id;
-    int32_t     logical_node_type_id;
-    std::string name;
-    std::string model_name;
-    std::string vendor_name;
-    std::string product_name;
+std::vector<cpu_info>
+process_cpu_info_data();
 
-    size_t device_id{ 0 };
-    size_t base_id{ 0 };
-#if ROCPROFSYS_USE_ROCM > 0
-    amdsmi_processor_handle smi_handle = nullptr;
-#endif
-};
+std::vector<cpu_info>
+get_cpu_info();
 
-}  // namespace rocpd
+size_t
+device_count();
+
+void
+query_cpu_agents();
+
+}  // namespace cpu
 }  // namespace rocprofsys
