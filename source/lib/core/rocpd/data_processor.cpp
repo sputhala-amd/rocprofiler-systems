@@ -215,7 +215,7 @@ data_processor::insert_pmc_event(size_t event_id, size_t agent_id, const char* p
         return;
     }
 
-    const auto [_, pmc_description_id] = *it;
+    const auto pmc_description_id = it->second;
     _insert_pmc_event_statement(_upid.c_str(), event_id, pmc_description_id, value,
                                 extdata);
 }
@@ -234,7 +234,7 @@ data_processor::insert_sample(const char* track, uint64_t timestamp, size_t even
                            track);
         return;
     }
-    auto [_, track_info] = *it;
+    auto track_info = it->second;
     _insert_sample_statement(_upid.c_str(), track_info.track_id, timestamp, event_id,
                              extdata);
 }
