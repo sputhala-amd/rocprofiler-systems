@@ -27,14 +27,9 @@
 #include "core/node_info.hpp"
 #include "core/perfetto.hpp"
 #include "core/rocpd/data_processor.hpp"
-#include "core/rocpd/json.hpp"
 #include "library/tracing.hpp"
 
-#include <optional>
-#include <timemory/backends/mpi.hpp>
-#include <timemory/manager.hpp>
 #include <timemory/units.hpp>
-#include <timemory/utility/locking.hpp>
 
 namespace rocprofsys
 {
@@ -141,8 +136,8 @@ rocpd_initialize_comm_data_pmc()
 
 #if defined(ROCPROFSYS_USE_MPI)
     data_processor.insert_pmc_description(
-        ni.id, getpid(), base_id, TARGET_ARCH, EVENT_CODE, INSTANCE_ID, mpi_send::label,
-        "Tracks MPI Send communication data sizes",
+        ni.id, getpid(), base_id, TARGET_ARCH, EVENT_CODE, INSTANCE_ID,
+        comm_data::mpi_send::label, "Tracks MPI Send communication data sizes",
         trait::name<category::mpi>::description, LONG_DESCRIPTION, COMPONENT, MSG, "ABS",
         BLOCK, EXPRESSION, 0, 0);
 
