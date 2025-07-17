@@ -69,7 +69,7 @@ database::database()
                             "database open failed!");
     validate_sqlite3_result(sqlite3_open(abs_db_path.c_str(), &_sqlite3_db), "",
                             "database open failed!");
-};
+}
 
 database::~database()
 {

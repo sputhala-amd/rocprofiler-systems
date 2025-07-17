@@ -97,22 +97,12 @@ rocpd_initialize_cpu_freq_category()
                                          trait::name<category::cpu_freq>::value);
 }
 
-size_t
-rocpd_initialize_thread_info(size_t tid)
-{
-    auto& data_processor = get_data_processor();
-    auto& n_info         = node_info::get_instance();
-
-    return data_processor.insert_thread_info(n_info.id, getppid(), getpid(), tid,
-                                             JOIN(" ", "Thread", tid).c_str(), 0, 0,
-                                             "{}");
-}
-
 void
-rocpd_initialize_cpu_freq_tracks(size_t thread_idx)
+rocpd_initialize_cpu_freq_tracks()
 {
-    auto& data_processor = get_data_processor();
-    auto& n_info         = node_info::get_instance();
+    auto&      data_processor = get_data_processor();
+    auto&      n_info         = node_info::get_instance();
+    const auto thread_idx     = std::nullopt;  // Internal thread ID for cpu-freq
 
     do_for_enabled_cpus([&](size_t cpu_id) {
         data_processor.insert_track(
@@ -122,10 +112,11 @@ rocpd_initialize_cpu_freq_tracks(size_t thread_idx)
 }
 
 void
-rocpd_initialize_cpu_usage_tracks(size_t thread_idx)
+rocpd_initialize_cpu_usage_tracks()
 {
-    auto& data_processor = get_data_processor();
-    auto& n_info         = node_info::get_instance();
+    auto&      data_processor = get_data_processor();
+    auto&      n_info         = node_info::get_instance();
+    const auto thread_idx     = std::nullopt;  // Internal thread ID for cpu-freq
 
     data_processor.insert_track(trait::name<category::process_page>::value, n_info.id,
                                 getpid(), thread_idx);
@@ -355,9 +346,8 @@ post_process()
     if(get_use_rocpd())
     {
         rocpd_initialize_cpu_freq_category();
-        auto thread_idx = rocpd_initialize_thread_info(gettid());
-        rocpd_initialize_cpu_usage_tracks(thread_idx);
-        rocpd_initialize_cpu_freq_tracks(thread_idx);
+        rocpd_initialize_cpu_usage_tracks();
+        rocpd_initialize_cpu_freq_tracks();
 
         // `get_enabled_cpus()` returns the number of cores enabled for monitoring but the
         // actuall device_id is 0, since there is a single device avaliable. And the
