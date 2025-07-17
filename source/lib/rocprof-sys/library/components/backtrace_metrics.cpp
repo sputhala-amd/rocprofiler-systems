@@ -410,10 +410,10 @@ rocpd_initialize_backtrace_metrics_pmc(size_t dev_id, const char* units, int64_t
     const char* BLOCK            = "";
     const char* EXPRESSION       = "";
     auto        ni               = node_info::get_instance();
-    const auto*  TARGET_ARCH      = "CPU";
+    const auto* TARGET_ARCH      = "CPU";
 
     auto& _agent_manager = agent_manager::get_instance();
-    auto  _base_id    = _agent_manager.get_agent_by_id(dev_id, agent_type::CPU).base_id;
+    auto  _base_id = _agent_manager.get_agent_by_id(dev_id, agent_type::CPU).base_id;
 
     if constexpr(std::is_same_v<Category, category::thread_hardware_counter>)
     {

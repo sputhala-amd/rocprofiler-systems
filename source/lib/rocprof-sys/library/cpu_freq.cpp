@@ -151,7 +151,7 @@ rocpd_initialize_cpu_freq_pmc(size_t dev_id)
     const auto* TARGET_ARCH      = "CPU";
 
     auto& _agent_manager = agent_manager::get_instance();
-    auto  base_id    = _agent_manager.get_agent_by_id(dev_id, agent_type::CPU).base_id;
+    auto  base_id = _agent_manager.get_agent_by_id(dev_id, agent_type::CPU).base_id;
 
     do_for_enabled_cpus([&](size_t cpu_id) {
         data_processor.insert_pmc_description(
@@ -350,7 +350,7 @@ post_process()
         rocpd_initialize_cpu_freq_tracks();
 
         // `get_enabled_cpus()` returns the number of cores enabled for monitoring but the
-        // actuall device_id is 0, since there is a single device avaliable. And the
+        // actually device_id is 0, since there is a single device available. And the
         // agents seems to be assigned per device basis not per core.
         // TODO: `get_enabled_cpus()` should be fixed in the future to align with GPU
         // implementation.

@@ -59,5 +59,4 @@ struct agent
 #endif
 };
 
-
 }  // namespace rocprofsys
