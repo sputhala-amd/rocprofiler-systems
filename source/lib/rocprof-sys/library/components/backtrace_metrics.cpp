@@ -410,10 +410,10 @@ rocpd_initialize_backtrace_metrics_pmc(size_t dev_id, const char* units, int64_t
     const char* BLOCK            = "";
     const char* EXPRESSION       = "";
     auto        ni               = node_info::get_instance();
-    const auto  TARGET_ARCH      = "CPU";
+    const auto*  TARGET_ARCH      = "CPU";
 
-    auto& agent_mngr = rocpd::agent_manager::get_instance();
-    auto  base_id    = agent_mngr.get_agent_by_id(dev_id, rocpd::CPU).base_id;
+    auto& _agent_manager = agent_manager::get_instance();
+    auto  _base_id    = _agent_manager.get_agent_by_id(dev_id, agent_type::CPU).base_id;
 
     if constexpr(std::is_same_v<Category, category::thread_hardware_counter>)
     {
@@ -427,7 +427,7 @@ rocpd_initialize_backtrace_metrics_pmc(size_t dev_id, const char* units, int64_t
             std::string track_name = JOIN(' ', "Thread", _desc, _tid_name, "(S)");
 
             data_processor.insert_pmc_description(
-                ni.id, getpid(), base_id, TARGET_ARCH, EVENT_CODE, INSTANCE_ID,
+                ni.id, getpid(), _base_id, TARGET_ARCH, EVENT_CODE, INSTANCE_ID,
                 track_name.c_str(), trait::name<Category>::value,
                 trait::name<Category>::description, LONG_DESCRIPTION, COMPONENT, units,
                 "ABS", BLOCK, EXPRESSION, 0, 0);
@@ -435,7 +435,7 @@ rocpd_initialize_backtrace_metrics_pmc(size_t dev_id, const char* units, int64_t
     }
     else
         data_processor.insert_pmc_description(
-            ni.id, getpid(), base_id, TARGET_ARCH, EVENT_CODE, INSTANCE_ID,
+            ni.id, getpid(), _base_id, TARGET_ARCH, EVENT_CODE, INSTANCE_ID,
             JOIN("_", trait::name<Category>::value, _tid_name).c_str(),
             trait::name<Category>::value, trait::name<Category>::description,
             LONG_DESCRIPTION, COMPONENT, units, "ABS", BLOCK, EXPRESSION, 0, 0);
@@ -450,8 +450,8 @@ rocpd_process_backtrace_metrics_events(const uint32_t device_id, uint64_t timest
     auto  _tid_name      = JOIN("", '[', _tid, ']');
     auto  event_id =
         data_processor.insert_event(category_enum_id<Category>::value, 0, 0, 0);
-    auto& agent_mngr = rocpd::agent_manager::get_instance();
-    auto  base_id    = agent_mngr.get_agent_by_id(device_id, rocpd::CPU).base_id;
+    auto& agent_mngr = agent_manager::get_instance();
+    auto  base_id    = agent_mngr.get_agent_by_id(device_id, agent_type::CPU).base_id;
 
     auto insert_event_and_sample = [&](const char* name, double _value) {
         data_processor.insert_pmc_event(event_id, base_id, name, _value);

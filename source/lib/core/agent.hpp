@@ -33,10 +33,8 @@
 
 namespace rocprofsys
 {
-namespace rocpd
-{
 
-enum agent_type : uint8_t
+enum class agent_type : uint8_t
 {
     CPU,  ///< Agent type is a CPU
     GPU   ///< Agent type is a GPU
@@ -61,5 +59,5 @@ struct agent
 #endif
 };
 
-}  // namespace rocpd
+
 }  // namespace rocprofsys

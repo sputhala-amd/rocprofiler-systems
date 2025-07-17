@@ -121,12 +121,13 @@ query_rocm_agents()
     auto iterator = []([[maybe_unused]] rocprofiler_agent_version_t version,
                        const void** agents, size_t num_agents,
                        [[maybe_unused]] void* user_data) -> rocprofiler_status_t {
-        auto& _agent_manager = rocpd::agent_manager::get_instance();
+        auto& _agent_manager = agent_manager::get_instance();
         for(size_t i = 0; i < num_agents; ++i)
         {
             const auto* _agent    = static_cast<const rocprofiler_agent_v0_t*>(agents[i]);
-            auto        cur_agent = rocpd::agent{
-                (_agent->type == ROCPROFILER_AGENT_TYPE_GPU ? rocpd::GPU : rocpd::CPU),
+            auto        cur_agent = agent{
+                (_agent->type == ROCPROFILER_AGENT_TYPE_GPU ? agent_type::GPU
+                                                                   : agent_type::CPU),
                 _agent->device_id,
                 _agent->node_id,
                 _agent->logical_node_id,
@@ -151,7 +152,7 @@ query_rocm_agents()
             1, "Exception thrown getting the rocm agents: %s. _dev_cnt=%ld\n", _e.what(),
             _dev_cnt);
     }
-    _dev_cnt = rocpd::agent_manager::get_instance().get_gpu_agents_count();
+    _dev_cnt = agent_manager::get_instance().get_gpu_agents_count();
 #endif
     return _dev_cnt;
 }

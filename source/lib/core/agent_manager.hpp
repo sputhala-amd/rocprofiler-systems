@@ -30,9 +30,6 @@
 namespace rocprofsys
 {
 
-namespace rocpd
-{
-
 struct agent_manager
 {
     static agent_manager& get_instance();
@@ -62,5 +59,4 @@ private:
     agent_manager() = default;
 };
 
-}  // namespace rocpd
 }  // namespace rocprofsys

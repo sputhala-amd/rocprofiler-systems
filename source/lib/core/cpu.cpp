@@ -144,7 +144,7 @@ query_cpu_agents()
         return;
     }
 
-    auto& _agent_manager = rocpd::agent_manager::get_instance();
+    auto& _agent_manager = agent_manager::get_instance();
     auto  cpu_data       = get_cpu_info();
 
     for(auto& cpu : cpu_data)
@@ -152,15 +152,15 @@ query_cpu_agents()
         auto node_id    = node_count++;
         auto logical_id = id_count++;
         auto id         = cpu_count++;
-        auto cur_agent  = rocpd::agent{ rocpd::CPU,
-                                       id,
-                                       node_id,
-                                       logical_id,
-                                       static_cast<int32_t>(id),
-                                       cpu.model_name,
-                                       cpu.model_name,
-                                       cpu.vendor_id,
-                                       "" };
+        auto cur_agent  = agent{ agent_type::CPU,
+                                id,
+                                node_id,
+                                logical_id,
+                                static_cast<int32_t>(id),
+                                cpu.model_name,
+                                cpu.model_name,
+                                cpu.vendor_id,
+                                "" };
         _agent_manager.insert_agent(cur_agent);
     }
 }

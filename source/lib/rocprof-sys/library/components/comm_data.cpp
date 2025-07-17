@@ -134,9 +134,9 @@ rocpd_initialize_comm_data_pmc()
     auto                                   ni               = node_info::get_instance();
     constexpr const auto                   DEVICE_ID = 0;  // Assuming CPU device ID is 0
 
-    auto&                 agent_mngr = rocpd::agent_manager::get_instance();
+    auto&                 _agent_manager = agent_manager::get_instance();
     [[maybe_unused]] auto base_id =
-        agent_mngr.get_agent_by_id(DEVICE_ID, rocpd::CPU).base_id;
+        _agent_manager.get_agent_by_id(DEVICE_ID, agent_type::CPU).base_id;
 
 #if defined(ROCPROFSYS_USE_MPI)
     data_processor.insert_pmc_description(
@@ -162,8 +162,8 @@ rocpd_process_cpu_usage_events(const uint32_t device_id, int bytes)
     auto  event_id       = data_processor.insert_event(
         category_enum_id<category::comm_data>::value, 0, 0, 0);
 
-    auto& agents = rocpd::agent_manager::get_instance();
-    auto  agent  = agents.get_agent_by_id(device_id, rocpd::CPU);
+    auto& agents = agent_manager::get_instance();
+    auto  agent  = agents.get_agent_by_id(device_id, agent_type::CPU);
 
     auto insert_event_and_sample = [&](const char* name, uint64_t timestamp,
                                        double value) {
