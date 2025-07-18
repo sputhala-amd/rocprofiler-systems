@@ -196,8 +196,11 @@ rocpd_process_cpu_usage_events(const uint32_t device_id, int bytes)
 void
 comm_data::start()
 {
-    rocpd_initialize_comm_data_categories();
-    rocpd_initialize_comm_data_pmc();
+    if(get_use_rocpd())
+    {
+        rocpd_initialize_comm_data_categories();
+        rocpd_initialize_comm_data_pmc();
+    }
 }
 
 void
@@ -210,11 +213,6 @@ void
 comm_data::global_finalize()
 {
     configure();
-    if(get_use_rocpd())
-    {
-        rocpd_initialize_comm_data_categories();
-        rocpd_initialize_comm_data_pmc();
-    }
 }
 
 void
