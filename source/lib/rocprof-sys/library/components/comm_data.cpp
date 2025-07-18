@@ -142,8 +142,8 @@ rocpd_initialize_comm_data_pmc()
         BLOCK, EXPRESSION, 0, 0);
 
     data_processor.insert_pmc_description(
-        ni.id, getpid(), base_id, TARGET_ARCH, EVENT_CODE, INSTANCE_ID, mpi_recv::label,
-        "Tracks MPI Receive communication data sizes",
+        ni.id, getpid(), base_id, TARGET_ARCH, EVENT_CODE, INSTANCE_ID,
+        comm_data::mpi_recv::label, "Tracks MPI Receive communication data sizes",
         trait::name<category::mpi>::description, LONG_DESCRIPTION, COMPONENT, MSG, "ABS",
         BLOCK, EXPRESSION, 0, 0);
 #endif
