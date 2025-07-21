@@ -176,7 +176,7 @@ else()
         message(WARNING "-- ERROR!: rocJPEG Not Found! - please install rocJPEG!")
     endif()
     if(NOT Threads_FOUND)
-        message(WARNING "-- ERROR!: Threads Not Found! - please insatll Threads!")
+        message(WARNING "-- ERROR!: Threads Not Found! - please install Threads!")
     endif()
     if(NOT rocprofiler-register_FOUND)
         message(
