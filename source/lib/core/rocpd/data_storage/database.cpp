@@ -24,12 +24,12 @@
 #include "common/md5sum.hpp"
 #include "debug.hpp"
 #include "node_info.hpp"
-#include "timemory/utility/filepath.hpp"
 
 #include <config.hpp>
 #include <fstream>
 #include <regex>
 #include <timemory/environment/types.hpp>
+#include <timemory/utility/filepath.hpp>
 #include <unistd.h>
 
 namespace
