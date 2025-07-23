@@ -516,7 +516,7 @@ find_undefined_function_symbol(image_t* app_image, const std::string& _name)
 
         for(auto* symbol : all_symbols)
         {
-            if(!symbol) continue;
+            if (!symbol || symbol->getType() != SymTab::Symbol::ST_FUNCTION || symbol->getRegion()) continue;
 
             // Try all possible symbol name representations
             std::string symbol_name = symbol->getPrettyName();
@@ -524,12 +524,8 @@ find_undefined_function_symbol(image_t* app_image, const std::string& _name)
             if(symbol_name.empty()) symbol_name = symbol->getTypedName();
 
             // Check for exact match and undefined function criteria
-            if(symbol_name == target_name &&
-               symbol->getType() == SymTab::Symbol::ST_FUNCTION &&
-               symbol->getRegion() == nullptr)
-            {
+            if (symbol_name == target_name)
                 return symbol;
-            }
         }
         return nullptr;
     };
