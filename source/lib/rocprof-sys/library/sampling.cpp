@@ -1738,8 +1738,8 @@ rocpd_post_process_overflow_data(
 }
 
 void
-rocpd_post_process_backtrace_metrix(int64_t                                 _tid,
-                                    const std::vector<timer_sampling_data>& _timer_data)
+rocpd_post_process_backtrace_metrics(int64_t                                 _tid,
+                                     const std::vector<timer_sampling_data>& _timer_data)
 {
     auto _valid_metrics = backtrace_metrics::valid_array_t{};
 
@@ -1771,7 +1771,7 @@ rocpd_post_process_timer_data(int64_t                                 _tid,
 
     if(!_timer_data.empty())
     {
-        rocpd_post_process_backtrace_metrix(_tid, _timer_data);
+        rocpd_post_process_backtrace_metrics(_tid, _timer_data);
 
         auto _beg_ns = std::max(_timer_data.front().m_beg, _thread_info->get_start());
         auto _end_ns = std::min(_timer_data.back().m_end, _thread_info->get_stop());
