@@ -183,8 +183,8 @@ rocpd_initialize_kokkos_track()
 }
 
 void
-rocpd_process_kokos_event(const char* name, const char* event_type, const char* target,
-                          uint64_t timestamp_ns)
+rocpd_process_kokkos_event(const char* name, const char* event_type, const char* target,
+                           uint64_t timestamp_ns)
 {
     auto& data_processor = get_data_processor();
     auto  event_metadata = rocpd::json::create();
@@ -621,9 +621,9 @@ extern "C"
 
         if(rocprofsys::config::get_use_rocpd())
         {
-            rocpd_process_kokos_event(JOIN(" ", _kp_prefix, label).c_str(),
-                                      "[dual_view_sync]", (is_device) ? "device" : "host",
-                                      timestamp);
+            rocpd_process_kokkos_event(JOIN(" ", _kp_prefix, label).c_str(),
+                                       "[dual_view_sync]",
+                                       (is_device) ? "device" : "host", timestamp);
         }
     }
 
@@ -650,9 +650,9 @@ extern "C"
 
         if(rocprofsys::config::get_use_rocpd())
         {
-            rocpd_process_kokos_event(JOIN(" ", _kp_prefix, label).c_str(),
-                                      "[dual_view_modify]",
-                                      (is_device) ? "device" : "host", timestamp);
+            rocpd_process_kokkos_event(JOIN(" ", _kp_prefix, label).c_str(),
+                                       "[dual_view_modify]",
+                                       (is_device) ? "device" : "host", timestamp);
         }
     }
 
