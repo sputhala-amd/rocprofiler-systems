@@ -22,7 +22,7 @@
 
 #include "data_processor.hpp"
 #include "core/rocpd/data_storage/database.hpp"
-#include "core/rocpd/data_storage/queries/table_insert_query.hpp"
+#include "core/rocpd/data_storage/table_insert_query.hpp"
 #include "debug.hpp"
 
 namespace rocprofsys

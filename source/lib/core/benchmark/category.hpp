@@ -30,7 +30,7 @@
 
 #include <string_view>
 
-namespace rocprofiler
+namespace rocprofsys
 {
 namespace benchmark
 {
@@ -65,4 +65,4 @@ to_string(category cat)
 }
 
 }  // namespace benchmark
-}  // namespace rocprofiler
+}  // namespace rocprofsys

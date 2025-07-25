@@ -41,7 +41,7 @@
 #include "core/benchmark/category.hpp"
 #include "core/debug.hpp"
 
-namespace rocprofiler
+namespace rocprofsys
 {
 namespace benchmark
 {
@@ -350,4 +350,4 @@ show_results()
 }
 
 }  // namespace benchmark
-}  // namespace rocprofiler
+}  // namespace rocprofsys

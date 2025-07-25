@@ -6,6 +6,8 @@ configure_file(
 )
 
 set(core_sources
+    ${CMAKE_CURRENT_LIST_DIR}/agent_manager.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/amd_smi.cpp
     ${CMAKE_CURRENT_LIST_DIR}/argparse.cpp
     ${CMAKE_CURRENT_LIST_DIR}/categories.cpp
     ${CMAKE_CURRENT_LIST_DIR}/config.cpp
@@ -16,18 +18,19 @@ set(core_sources
     ${CMAKE_CURRENT_LIST_DIR}/exception.cpp
     ${CMAKE_CURRENT_LIST_DIR}/gpu.cpp
     ${CMAKE_CURRENT_LIST_DIR}/mproc.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/node_info.cpp
     ${CMAKE_CURRENT_LIST_DIR}/perf.cpp
     ${CMAKE_CURRENT_LIST_DIR}/perfetto.cpp
     ${CMAKE_CURRENT_LIST_DIR}/rocprofiler-sdk.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/amd_smi.cpp
     ${CMAKE_CURRENT_LIST_DIR}/state.cpp
     ${CMAKE_CURRENT_LIST_DIR}/timemory.cpp
     ${CMAKE_CURRENT_LIST_DIR}/utility.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/agent_manager.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/node_info.cpp
 )
 
 set(core_headers
+    ${CMAKE_CURRENT_LIST_DIR}/agent.hpp
+    ${CMAKE_CURRENT_LIST_DIR}/agent_manager.hpp
+    ${CMAKE_CURRENT_LIST_DIR}/amd_smi.hpp
     ${CMAKE_CURRENT_LIST_DIR}/argparse.hpp
     ${CMAKE_CURRENT_LIST_DIR}/categories.hpp
     ${CMAKE_CURRENT_LIST_DIR}/common.hpp
@@ -42,17 +45,14 @@ set(core_headers
     ${CMAKE_CURRENT_LIST_DIR}/locking.hpp
     ${CMAKE_CURRENT_LIST_DIR}/mpi.hpp
     ${CMAKE_CURRENT_LIST_DIR}/mproc.hpp
+    ${CMAKE_CURRENT_LIST_DIR}/node_info.hpp
     ${CMAKE_CURRENT_LIST_DIR}/perf.hpp
     ${CMAKE_CURRENT_LIST_DIR}/perfetto.hpp
     ${CMAKE_CURRENT_LIST_DIR}/redirect.hpp
     ${CMAKE_CURRENT_LIST_DIR}/rocprofiler-sdk.hpp
-    ${CMAKE_CURRENT_LIST_DIR}/amd_smi.hpp
     ${CMAKE_CURRENT_LIST_DIR}/state.hpp
     ${CMAKE_CURRENT_LIST_DIR}/timemory.hpp
     ${CMAKE_CURRENT_LIST_DIR}/utility.hpp
-    ${CMAKE_CURRENT_LIST_DIR}/agent.hpp
-    ${CMAKE_CURRENT_LIST_DIR}/agent_manager.hpp
-    ${CMAKE_CURRENT_LIST_DIR}/node_info.hpp
 )
 
 add_library(rocprofiler-systems-core-library STATIC)

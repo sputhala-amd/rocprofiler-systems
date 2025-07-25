@@ -90,11 +90,14 @@ rocpd_initialize_comm_data_categories()
 
     get_data_processor().insert_category(category_enum_id<category::comm_data>::value,
                                          trait::name<category::comm_data>::value);
+#if defined(ROCPROFSYS_USE_MPI)
     get_data_processor().insert_category(category_enum_id<category::mpi>::value,
                                          trait::name<category::mpi>::value);
+#endif
+#if defined(ROCPROFSYS_USE_RCCL)
     get_data_processor().insert_category(category_enum_id<category::rocm_rccl>::value,
                                          trait::name<category::rocm_rccl>::value);
-
+#endif
     _is_initialized = true;
 }
 

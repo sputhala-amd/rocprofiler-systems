@@ -22,7 +22,7 @@
 
 #pragma once
 
-#include "query_builders/insert_query_builders.hpp"
+#include "insert_query_builders.hpp"
 
 namespace rocprofsys
 {
