@@ -174,7 +174,8 @@ data_processor::insert_pmc_description(
     if(it != _pmc_descriptor_map.end())
     {
         ROCPROFSYS_WARNING(
-            0, "Insert PMC description failed! Error: PMC descriptor already exist!\n");
+            0, "Insert PMC description failed! Error: PMC descriptor (name:%s) (ID:%lu) already exist!\n",
+            name, agent_id);
         return;
     }
     data_storage::queries::table_insert_query query_builder;
