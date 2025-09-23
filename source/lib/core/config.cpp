@@ -204,6 +204,26 @@ settings_are_configured()
     return _settings_are_configured();
 }
 
+/**
+ * @brief Initialize and register rocprofsys configuration settings.
+ *
+ * This performs one-time construction and registration of all runtime configuration
+ * options used by rocprof-sys (env/config defaults, choices, categories, and
+ * deprecated mappings). It also integrates metadata into timemory, reads configuration
+ * files (when permitted), applies environment overrides, initializes timemory when
+ * requested, configures mode- and signal-related settings, and marks the global
+ * configuration as configured.
+ *
+ * Calling this more than once is a no-op. In CI builds, invoking this before the
+ * library initialization (rocprofsys_init_library) will print a backtrace and throw
+ * a diagnostic error.
+ *
+ * @param _init If true, perform timemory initialization using the parsed command
+ *              line and register rocprof-sys command-line options; otherwise skip
+ *              timemory init.
+ * @throws std::runtime_error via ROCPROFSYS_THROW if called before library
+ *         initialization when CI checks are enabled.
+ */
 void
 configure_settings(bool _init)
 {
@@ -1240,6 +1260,34 @@ set_signal_handler(signal_handler_t _func)
     return get_signal_handler().load();
 }
 
+/**
+ * @brief Configure and install the process signal handling behavior for rocprofsys.
+ *
+ * Configures signal detection and handlers based on the provided settings and
+ * environment variables. When signal handling is enabled in the settings, this
+ * function:
+ * - Disables Timemory's default signal detection, prepares the rocprofsys
+ *   signal settings, and enables the configured default signals.
+ * - Installs rocprofsys_exit_action as the exit action for handled signals.
+ * - Enables the Terminate signal in addition to Interrupt when the current
+ *   process is a child of the configured root process (ROCPROFSYS_ROOT_PROCESS).
+ * - Enables Timemory signal detection for the computed enabled signal set.
+ *
+ * Independently of the settings flag, if ROCPROFSYS_IGNORE_DYNINST_TRAMPOLINE
+ * is true this function installs rocprofsys_trampoline_handler for the Dyninst
+ * trampoline signal (DYNINST_SIGNAL_TRAMPOLINE_SIGILL if that environment
+ * variable is present, otherwise SIGTRAP).
+ *
+ * Environment variables observed:
+ * - ROCPROFSYS_IGNORE_DYNINST_TRAMPOLINE: when true, the Dyninst trampoline
+ *   signal is ignored by rocprofsys signal settings and a trampoline handler is
+ *   explicitly installed.
+ * - ROCPROFSYS_ROOT_PROCESS: PID of the root process used to detect child
+ *   processes; when the current PID differs, Terminate is enabled.
+ *
+ * Note: This function has side effects on global signal state and installs
+ * process-wide handlers.
+ */
 void
 configure_signal_handler(const std::shared_ptr<settings>& _config)
 {
@@ -2350,6 +2398,16 @@ get_use_tmp_files()
     return static_cast<tim::tsettings<bool>&>(*_v->second).get();
 }
 
+/**
+ * @brief Returns the configured temporary directory for rocprofsys.
+ *
+ * Retrieves the value of the ROCPROFSYS_TMPDIR configuration setting and
+ * returns it as a std::string. The returned string is the directory used for
+ * temporary files created by rocprofsys utilities; it may be empty if no
+ * directory was configured.
+ *
+ * @return std::string Path to the temporary directory (may be empty).
+ */
 std::string
 get_tmpdir()
 {
@@ -2357,6 +2415,19 @@ get_tmpdir()
     return static_cast<tim::tsettings<std::string>&>(*_v->second).get();
 }
 
+/**
+ * @brief Compose and return an absolute filesystem path for a named database file.
+ *
+ * Constructs a filename for the provided database_name (using ".db" as the extension),
+ * determines the directory portion, updates the ROCPROFSYS_DATABASE_DIR environment
+ * variable to that directory, and returns the resulting absolute path. If the
+ * composed filename is relative, the returned path is converted to an absolute form
+ * using the process working directory before being returned.
+ *
+ * @param database_name Base name for the database (without extension).
+ * @return std::string Absolute path to the composed database file; also ensures
+ *         ROCPROFSYS_DATABASE_DIR is set to the file's directory.
+ */
 std::string
 get_database_absolute_path(std::string_view database_name)
 {
@@ -2384,6 +2455,15 @@ get_database_absolute_path(std::string_view database_name)
     return _val;
 }
 
+/**
+ * @brief Access the runtime flag that enables the rocpd backend.
+ *
+ * Returns a reference to the boolean configuration value backing ROCPROFSYS_USE_ROCPD.
+ * The reference refers to the shared settings instance and can be read or modified at runtime
+ * to enable or disable the rocpd backend.
+ *
+ * @return bool& Reference to the ROCPROFSYS_USE_ROCPD setting.
+ */
 bool&
 get_use_rocpd()
 {
@@ -2391,6 +2471,13 @@ get_use_rocpd()
     return static_cast<tim::tsettings<bool>&>(*_v).get();
 }
 
+/**
+ * @brief Initialize a temporary-file wrapper with the specified filename.
+ *
+ * Constructs a tmp_file and stores the provided filename (moved into the object).
+ *
+ * @param _v Base filename or path to use for the temporary file; ownership of the string is transferred.
+ */
 tmp_file::tmp_file(std::string _v)
 : filename{ std::move(_v) }
 {}

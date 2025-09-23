@@ -83,7 +83,13 @@ struct comm_data : base<comm_data, void>
     static void configure();
     static void global_finalize();
     static void start();
-    static void stop() {}
+    /**
+ * @brief Stops the comm_data component.
+ *
+ * This function is intentionally a no-op provided to satisfy the component lifecycle
+ * interface (complements start()). It exists for symmetry and potential future use.
+ */
+static void stop() {}
 
 #if defined(ROCPROFSYS_USE_MPI)
     static int mpi_type_size(MPI_Datatype _datatype)

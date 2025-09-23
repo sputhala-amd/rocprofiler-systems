@@ -45,7 +45,14 @@ public:
     std::string to_string() const;
 
 private:
-    json() = default;
+    /**
+ * @brief Default constructor.
+ *
+ * Constructs an empty json object. The constructor is private to enforce
+ * construction via the static factory method `json::create()`, which returns
+ * a managed `std::shared_ptr<json>`.
+ */
+json() = default;
 
 private:
     static std::string stringify(const std::shared_ptr<json_value>& value);

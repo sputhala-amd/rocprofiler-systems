@@ -35,10 +35,26 @@ namespace queries
 
 struct table_insert_query
 {
+    /**
+     * @brief Default-constructs a table_insert_query.
+     *
+     * Initializes the internal stringstream and constructs the query_columns_builder
+     * to operate on that stream so subsequent calls (e.g., set_table_name) append
+     * to the same underlying SQL fragment.
+     */
     table_insert_query()
     : _query_columns_builder{ _ss }
     {}
 
+    /**
+     * @brief Start an INSERT query by setting the target table.
+     *
+     * Clears the internal query buffer and writes the leading fragment
+     * "INSERT INTO <tableName> " into it.
+     *
+     * @param tableName Name of the table to insert into (may include schema). This function does not validate or escape the name.
+     * @return query_builders::query_columns_builder& Reference to the columns/value builder to continue query construction.
+     */
     query_builders::query_columns_builder& set_table_name(const std::string& tableName)
     {
         _ss.str("");

@@ -126,7 +126,36 @@ auto timemory_hash_ids     = tim::hash::get_main_hash_ids();
 auto timemory_hash_aliases = tim::hash::get_main_hash_aliases();
 }  // namespace
 
-//--------------------------------------------------------------------------------------//
+/**
+ * @brief Entry point for the rocprof-sys-avail command-line utility.
+ *
+ * Initializes Timemory and ROCm tooling, parses command-line options, and
+ * prints availability information for components, runtime settings, and
+ * hardware counters in plain, Markdown, or CSV-like formats.
+ *
+ * The function:
+ * - sets up library/tooling state and queries GPU device count,
+ * - builds category options and interprets environment-driven settings,
+ * - configures and parses a rich set of command-line options (display, filter,
+ *   column, output, and debug groups),
+ * - supports listing categories/keys, generating a configuration file, and
+ *   writing output to stdout or a file,
+ * - delegates formatted output generation to write_component_info,
+ *   write_settings_info, and write_hw_counter_info as requested,
+ * - cleans up Timemory settings before exiting.
+ *
+ * Command-line behavior notes:
+ * - If --generate-config is used without a target file or formats, a
+ *   std::runtime_error is thrown.
+ * - Specifying both --markdown and --csv is treated as an error and causes
+ *   the program to exit with failure.
+ * - Returns EXIT_SUCCESS on success or EXIT_FAILURE on unrecoverable parse/
+ *   configuration errors.
+ *
+ * @param argc Number of command-line arguments.
+ * @param argv Command-line argument vector.
+ * @return int Exit status (0 on success, non-zero on failure).
+ */
 
 int
 main(int argc, char** argv)

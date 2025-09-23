@@ -134,6 +134,15 @@ backtrace_metrics::description()
     return "Records sampling data";
 }
 
+/**
+ * @brief Retrieve hardware counter (PAPI) labels for a thread.
+ *
+ * Returns the per-thread vector of hardware counter labels associated with the given
+ * thread id. If no labels are registered for that thread, an empty vector is returned.
+ *
+ * @param _tid Thread id used to look up thread-local PAPI labels.
+ * @return std::vector<std::string> Vector of hardware counter labels, or empty if none.
+ */
 std::vector<std::string>
 backtrace_metrics::get_hw_counter_labels(int64_t _tid)
 {
@@ -141,12 +150,25 @@ backtrace_metrics::get_hw_counter_labels(int64_t _tid)
     return (_v) ? *_v : std::vector<std::string>{};
 }
 
+/**
+ * @brief Returns the global ROCPD data processor instance.
+ *
+ * Provides access to the singleton rocpd::data_processor used to register
+ * categories, threads, tracks, PMCs, events, and samples.
+ *
+ * @return rocpd::data_processor& Reference to the singleton data processor.
+ */
 rocpd::data_processor&
 get_data_processor()
 {
     return rocpd::data_processor::get_instance();
 }
 
+/**
+ * @brief Start the backtrace metrics sampler.
+ *
+ * This method is a no-op placeholder kept for interface compatibility.
+ */
 void
 backtrace_metrics::start()
 {}
@@ -283,6 +305,20 @@ backtrace_metrics::init_perfetto(int64_t _tid, valid_array_t _valid)
     }
 }
 
+/**
+ * @brief Finalize Perfetto counters for a thread by emitting end-of-sampling TRACE_COUNTERs.
+ *
+ * Emits zero-valued TRACE_COUNTER events at the thread stop timestamp for each enabled
+ * category in _valid (CPU time, peak memory, context switches, page faults) and for
+ * per-thread hardware counters when present. This marks the end of the Perfetto tracks
+ * created for the thread so downstream trace consumers can infer final values.
+ *
+ * @param _tid Thread identifier whose Perfetto tracks will be finalized.
+ * @param _valid Bitset of enabled sampling categories; only categories set in this mask
+ *               produce TRACE_COUNTER emissions.
+ *
+ * @throws std::runtime_error if thread information for _tid is missing (via ROCPROFSYS_CI_THROW).
+ */
 void
 backtrace_metrics::fini_perfetto(int64_t _tid, valid_array_t _valid)
 {
@@ -337,6 +373,13 @@ backtrace_metrics::fini_perfetto(int64_t _tid, valid_array_t _valid)
     }
 }
 
+/**
+ * @brief Register ROCpd categories used by backtrace_metrics with the global data processor.
+ *
+ * Ensures the five thread-level categories (CPU time, peak memory, context switches,
+ * page faults, and hardware counters) are inserted into the singleton rocpd::data_processor.
+ * This function is safe to call multiple times; registration happens exactly once.
+ */
 void
 rocpd_init_categories()
 {
@@ -363,6 +406,27 @@ rocpd_init_categories()
 }
 
 template <typename Category>
+/**
+ * @brief Create ROCPD tracks for a thread for the given Category.
+ *
+ * For non-hardware-counter categories this inserts a single track named
+ * "<category_name>_[<tid>]". For Category = category::thread_hardware_counter
+ * this creates one track per hardware counter label (PAPI event), using the
+ * event's short description (or label if description is empty) and the thread id
+ * in the track name.
+ *
+ * The function registers thread information with the data processor and then
+ * inserts the appropriate track(s) referencing that thread.
+ *
+ * @tparam Category The metric category being initialized. When equal to
+ *         `category::thread_hardware_counter` the function enumerates PAPI event
+ *         labels and creates a per-counter track.
+ * @param _tid Thread identifier used to look up thread_info and to name tracks.
+ *
+ * @throws std::runtime_error (via ROCPROFSYS_CI_THROW) if a hardware-counter
+ *         event has an empty description after attempting to use the PAPI
+ *         short description or label.
+ */
 void
 rocpd_init_tracks(int64_t _tid)
 {
@@ -397,6 +461,22 @@ rocpd_init_tracks(int64_t _tid)
 }
 
 template <typename Category>
+/**
+ * @brief Register PMC (performance monitoring counter) descriptions for backtrace metrics with ROCPD.
+ *
+ * For the given device and thread, inserts PMC description(s) into the global data processor:
+ * - If `Category` is `category::thread_hardware_counter`, creates one PMC per hardware counter label
+ *   discovered for the thread (uses PAPI event short descriptions as track names). Throws if a
+ *   counter has an empty description.
+ * - Otherwise, inserts a single PMC description for the category using the category name and the
+ *   provided units.
+ *
+ * @param dev_id Device identifier used to look up the agent/base id for PMC registration.
+ * @param units  Units string to attach to the PMC description (e.g., "seconds", "MB").
+ * @param _tid   Thread id used to scope track names and to look up per-thread hardware counter labels.
+ *
+ * @throws std::runtime_error via ROCPROFSYS_CI_THROW if a hardware counter label yields an empty description.
+ */
 void
 rocpd_initialize_backtrace_metrics_pmc(size_t dev_id, const char* units, int64_t _tid)
 {
@@ -442,6 +522,26 @@ rocpd_initialize_backtrace_metrics_pmc(size_t dev_id, const char* units, int64_t
 }
 
 template <typename Category, typename Value>
+/**
+ * @brief Insert ROCpd PMC events and samples for a backtrace_metrics category and thread.
+ *
+ * Inserts one or more PMCs and corresponding samples into the global data_processor
+ * using the agent base id for the given device. For non-hardware categories a single
+ * event/sample is created named "<category>_[tid]". For Category == thread_hardware_counter
+ * a per-counter event/sample is created using per-thread PAPI labels and the provided
+ * hardware counter values.
+ *
+ * @tparam Category The metrics category to record (e.g., thread_cpu_time or thread_hardware_counter).
+ *
+ * @param device_id Device identifier used to resolve the agent/base id (CPU device expected).
+ * @param timestamp Timestamp (in the same timebase used by the data_processor) for the sample.
+ * @param value Metric value to record. For hardware-counter category this must be
+ *              convertible to backtrace_metrics::hw_counter_data_t; for other categories
+ *              it should be a numeric value representable as double.
+ * @param _tid Thread id associated with the sample; used to construct event/track names.
+ *
+ * Side effects: inserts events, PMC descriptions and samples into the global data_processor.
+ */
 void
 rocpd_process_backtrace_metrics_events(const uint32_t device_id, uint64_t timestamp,
                                        Value value, int64_t _tid)
@@ -477,6 +577,18 @@ rocpd_process_backtrace_metrics_events(const uint32_t device_id, uint64_t timest
             JOIN("_", trait::name<Category>::value, _tid_name).c_str(), value);
 }
 
+/**
+ * @brief Initialize ROCpd categories, tracks, and PMC descriptions for a thread.
+ *
+ * Ensures ROCpd categories are registered and, for each enabled metric in _valid,
+ * creates per-thread tracks and performance-monitoring-counter (PMC) descriptions
+ * so subsequent samples for the given thread id can be recorded.
+ *
+ * @param _tid Thread identifier used when creating thread-specific tracks and PMCs.
+ * @param _valid Bitset indicating which metric categories (CPU time, peak memory,
+ *               context switches, page faults, hardware counters, etc.) should be
+ *               initialized for this thread.
+ */
 void
 backtrace_metrics::init_rocpd(int64_t _tid, valid_array_t _valid)
 {
@@ -512,6 +624,22 @@ backtrace_metrics::init_rocpd(int64_t _tid, valid_array_t _valid)
     }
 }
 
+/**
+ * @brief Finalize and emit ROCpd events for a thread's backtrace metrics.
+ *
+ * Emits final ROCpd events (with zeroed values) at the thread's stop timestamp
+ * for each enabled category present in _valid. Handles CPU time, peak memory,
+ * context switches, page faults, and per-counter hardware counters.
+ *
+ * This function requires valid thread info for _tid and will throw if that
+ * information is missing.
+ *
+ * @param _tid Thread identifier whose ROCpd tracks are being finalized.
+ * @param _valid Bitset describing which categories/type-lists are enabled.
+ *
+ * @throws std::runtime_error via ROCPROFSYS_CI_THROW if thread info for _tid
+ *         cannot be obtained.
+ */
 void
 backtrace_metrics::fini_rocpd(int64_t _tid, valid_array_t _valid)
 {
@@ -559,6 +687,20 @@ backtrace_metrics::fini_rocpd(int64_t _tid, valid_array_t _valid)
     }
 }
 
+/**
+ * @brief Subtracts metrics from another backtrace_metrics into this instance.
+ *
+ * Subtracts each enabled metric field of @_rhs from the corresponding field in
+ * this object. Only categories that are enabled for this instance are updated:
+ * - thread_cpu_time: subtracts m_cpu
+ * - thread_peak_memory: subtracts m_mem_peak
+ * - thread_context_switch: subtracts m_ctx_swch
+ * - thread_page_fault: subtracts m_page_flt
+ * - thread_hardware_counter: performs element-wise subtraction across m_hw_counter
+ *
+ * @param _rhs Source metrics to subtract.
+ * @return backtrace_metrics& Reference to this instance after subtraction.
+ */
 backtrace_metrics&
 backtrace_metrics::operator-=(const backtrace_metrics& _rhs)
 {
@@ -593,6 +735,20 @@ backtrace_metrics::operator-=(const backtrace_metrics& _rhs)
     return _lhs;
 }
 
+/**
+ * @brief Emit Perfetto trace counters for this backtrace_metrics sample.
+ *
+ * When categories are enabled, writes TRACE_COUNTER events to the Perfetto
+ * tracks associated with the given thread:
+ * - thread_cpu_time: emits CPU time in seconds,
+ * - thread_peak_memory: emits peak RSS in megabytes,
+ * - thread_context_switch: emits context-switch count,
+ * - thread_page_fault: emits page-fault count,
+ * - thread_hardware_counter: emits each hardware counter value on its per-counter track.
+ *
+ * @param _tid Thread identifier used to select per-thread Perfetto tracks.
+ * @param _ts  Timestamp to associate with emitted TRACE_COUNTER events (Perfetto timestamp units).
+ */
 void
 backtrace_metrics::post_process_perfetto(int64_t _tid, uint64_t _ts) const
 {
@@ -640,6 +796,23 @@ backtrace_metrics::post_process_perfetto(int64_t _tid, uint64_t _ts) const
     }
 }
 
+/**
+ * @brief Emit ROCpd events/samples for all enabled backtrace metrics for a thread.
+ *
+ * For each category enabled on this backtrace_metrics instance, this function
+ * inserts an event and associated sample into the ROCpd data processor using
+ * the stored metric values. Values are converted to the units expected by the
+ * corresponding ROCpd PMCs (seconds for CPU time, megabytes for peak memory,
+ * raw counts for context switches/page faults, and per-counter data for
+ * hardware counters).
+ *
+ * Only categories that evaluate true when invoked as a predicate on *this are
+ * emitted. Hardware counter data is emitted as a single hw_counter_data_t blob
+ * when both hardware counters and the thread_hardware_counter category are enabled.
+ *
+ * @param _tid Thread identifier used to resolve the target tracks in ROCpd.
+ * @param _ts  Timestamp forwarded to the data processor and used for inserted samples.
+ */
 void
 backtrace_metrics::post_process_rocpd(int64_t _tid, uint64_t _ts) const
 {

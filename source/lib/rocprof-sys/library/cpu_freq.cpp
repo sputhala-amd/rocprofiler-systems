@@ -59,6 +59,15 @@ using cpu_data_tuple_t = std::tuple<size_t, int64_t, int64_t, int64_t, int64_t, 
 std::deque<cpu_data_tuple_t> data = {};
 
 template <typename... Types>
+/**
+ * @brief Initialize Perfetto counter tracks for a list of metric types.
+ *
+ * Calls perfetto_counter_track<T>::init() for each type T in the provided
+ * type_list, performing compile-time expansion so all listed counter tracks
+ * are initialized before runtime sampling or post-processing.
+ *
+ * @tparam Types Types of counters to initialize (elements of the supplied type_list).
+ */
 void
 init_perfetto_counter_tracks(type_list<Types...>)
 {
@@ -66,6 +75,17 @@ init_perfetto_counter_tracks(type_list<Types...>)
 }
 
 template <typename Category>
+/**
+ * @brief Build a CPU-frequency track name for a given Category.
+ *
+ * Constructs a human-readable track name by combining the Category trait name
+ * (trait::name<Category>::value) and the CPU identifier in square brackets,
+ * e.g. "CategoryName [3]".
+ *
+ * @tparam Category Category type whose name is taken from trait::name<Category>::value.
+ * @param cpu_id CPU identifier appended in brackets.
+ * @return std::string Formatted track name.
+ */
 inline std::string
 get_cpu_freq_track_name(uint64_t cpu_id)
 {
@@ -74,6 +94,16 @@ get_cpu_freq_track_name(uint64_t cpu_id)
 }
 
 template <typename Func>
+/**
+ * @brief Invoke a callable for each enabled CPU.
+ *
+ * Calls the provided callable once for every entry returned by component::cpu_freq::get_enabled_cpus().
+ * The callable receives a single argument of the same type as the enabled-cpus container element
+ * (typically a CPU identifier). The enabled-cpus container is not modified.
+ *
+ * @tparam Func Type of the callable.
+ * @param func Callable invoked for each enabled CPU.
+ */
 void
 do_for_enabled_cpus(Func&& func)
 {
@@ -84,12 +114,26 @@ do_for_enabled_cpus(Func&& func)
     }
 }
 
+/**
+ * @brief Return the singleton ROCPD data processor.
+ *
+ * Provides access to the global rocpd::data_processor instance used to emit
+ * and manage ROCPD/Perfetto events and tracks.
+ *
+ * @return rocpd::data_processor& Reference to the singleton data processor.
+ */
 rocpd::data_processor&
 get_data_processor()
 {
     return rocpd::data_processor::get_instance();
 }
 
+/**
+ * @brief Register the CPU frequency category with the ROCPD data processor.
+ *
+ * Inserts the CPU_FREQ category using the name from trait::name<category::cpu_freq>::value
+ * so CPU frequency tracks and events are recognized by the data processor.
+ */
 void
 rocpd_initialize_cpu_freq_category()
 {
@@ -97,6 +141,15 @@ rocpd_initialize_cpu_freq_category()
                                          trait::name<category::cpu_freq>::value);
 }
 
+/**
+ * @brief Register per-CPU frequency tracks with the ROCPD data processor.
+ *
+ * For each CPU returned by component::cpu_freq::get_enabled_cpus(), inserts a
+ * counter track into the singleton rocpd::data_processor using the node id from
+ * node_info::get_instance(), the current process id, and a nullopt thread
+ * index to denote an internal (non-thread) track. Track names are generated
+ * via get_cpu_freq_track_name<category::cpu_freq>(cpu_id).
+ */
 void
 rocpd_initialize_cpu_freq_tracks()
 {
@@ -111,6 +164,18 @@ rocpd_initialize_cpu_freq_tracks()
     });
 }
 
+/**
+ * @brief Register process-level usage counter tracks with the ROCPD data processor.
+ *
+ * Inserts per-process counter tracks for memory and CPU usage metrics (RSS pages,
+ * virtual memory, peak RSS, context switches, page faults, user-mode time, and
+ * kernel-mode time) into the singleton ROCPD data processor.
+ *
+ * The tracks are created using the node id from node_info::get_instance(), the
+ * current process id (getpid()), and a nullopt thread index to mark these as
+ * internal/process-level tracks. Track names are taken from trait::name<category>::value
+ * for each corresponding category.
+ */
 void
 rocpd_initialize_cpu_usage_tracks()
 {
@@ -134,6 +199,17 @@ rocpd_initialize_cpu_usage_tracks()
                                 n_info.id, getpid(), thread_idx);
 }
 
+/**
+ * @brief Register PMC descriptions for CPU-frequency and process usage metrics for a device.
+ *
+ * Inserts performance monitoring counter (PMC) metadata into the global data processor for
+ * each enabled CPU's frequency track and for several process-level metrics (memory, virtual
+ * memory, peak memory, context switches, page faults, user time, kernel time). The
+ * descriptions use the device's agent base_id, the local node id and process id, and the
+ * category/track names defined by traits and component::cpu_freq.
+ *
+ * @param dev_id Device identifier used to obtain the CPU agent base_id for PMC association.
+ */
 void
 rocpd_initialize_cpu_freq_pmc(size_t dev_id)
 {
@@ -204,6 +280,24 @@ rocpd_initialize_cpu_freq_pmc(size_t dev_id)
         COMPONENT, TIME, "ABS", BLOCK, EXPRESSION, 0, 0);
 }
 
+/**
+ * @brief Emit ROCPD events and samples for CPU frequencies and process usage metrics.
+ *
+ * Inserts a ROCPD event (via the global data processor) and appends PMC events and samples
+ * for each enabled CPU's frequency plus the provided process-level metrics. The PMC entries
+ * are associated with the CPU agent base id for the given device.
+ *
+ * @param device_id ROCm device identifier whose CPU agent is used to determine the PMC base id.
+ * @param timestamp Timestamp to attach to each sample (same value used for all inserted samples).
+ * @param freq Per-CPU frequency component providing frequency values for enabled CPUs.
+ * @param mem_page Process resident set size in pages.
+ * @param virt_mem_page Process virtual memory size in pages.
+ * @param peak_mem Peak resident set size in pages.
+ * @param context_switch Number of context switches (or context-switch metric value) to record.
+ * @param page_fault Number of page faults (or page-fault metric value) to record.
+ * @param user_time Process user-mode time (units expected by the consumer).
+ * @param kernel_time Process kernel-mode time (units expected by the consumer).
+ */
 void
 rocpd_process_cpu_usage_events(const uint32_t device_id, uint64_t timestamp,
                                const component::cpu_freq& freq, double mem_page,
@@ -247,6 +341,13 @@ namespace rocprofsys
 {
 namespace cpu_freq
 {
+/**
+ * @brief Initialize Perfetto counter tracks for CPU and process metrics.
+ *
+ * When Perfetto integration is enabled, registers the set of counter tracks
+ * used by this module (per-CPU frequency plus several process-level memory,
+ * page-fault, context-switch, and CPU-time counters).
+ */
 void
 setup()
 {
@@ -260,6 +361,11 @@ setup()
     }
 }
 
+/**
+ * @brief Configure the cpu frequency component.
+ *
+ * Delegates configuration work to component::cpu_freq::configure().
+ */
 void
 config()
 {
@@ -332,7 +438,24 @@ write_perfetto_counter_track(index&& _idx, Args... _args)
     using track = perfetto_counter_track<Tp>;
     TRACE_COUNTER(trait::name<Tp>::value, track::at(_idx.value, 0), _args...);
 }
-}  // namespace
+}  /**
+ * @brief Post-process collected CPU frequency and process usage samples.
+ *
+ * Processes the accumulated samples in `data`, emitting perfetto counter samples
+ * and (optionally) ROCPD events/tracks. Initializes Perfetto/ROCPD categories
+ * and tracks when enabled, writes per-CPU frequency counter samples and
+ * process-level counters (memory, virtual memory, peak memory, context switches,
+ * page faults, user/kernel time), and appends terminal zero-value samples at
+ * each track's thread stop time. Clears the enabled CPU list on completion.
+ *
+ * @note This function observes two feature flags:
+ * - If Perfetto is enabled, perfetto counter tracks are configured and samples
+ *   are written.
+ * - If ROCPD is enabled, ROCPD categories/tracks/PMCs are initialized and
+ *   per-sample events are sent to the ROCPD data processor.
+ *
+ * @throws std::runtime_error If required thread info for thread 0 is missing.
+ */
 
 void
 post_process()

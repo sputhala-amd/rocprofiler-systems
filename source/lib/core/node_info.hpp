@@ -34,11 +34,48 @@ private:
     node_info();
 
 public:
-    ~node_info()                               = default;
-    node_info(const node_info&)                = default;
-    node_info(node_info&&) noexcept            = default;
-    node_info& operator=(const node_info&)     = default;
-    node_info& operator=(node_info&&) noexcept = default;
+    /**
+ * @brief Default destructor for node_info.
+ *
+ * Destroys the node_info object and its member data.
+ */
+~node_info()                               = default;
+    /**
+ * @brief Copy constructs a node_info from another instance.
+ *
+ * Performs a member-wise copy of all node metadata fields (id, hash,
+ * machine_id, system_name, node_name, release, version, machine,
+ * domain_name).
+ */
+node_info(const node_info&)                = default;
+    /**
+ * @brief Move-constructs a node_info from another instance.
+ *
+ * Transfers ownership of the source's state to the new object.
+ * This is the compiler-generated move constructor and is noexcept.
+ */
+node_info(node_info&&) noexcept            = default;
+    /**
+ * @brief Copy-assigns the contents of another node_info.
+ *
+ * Performs memberwise copy assignment of all data members (id, hash, machine_id,
+ * system_name, node_name, release, version, machine, domain_name).
+ *
+ * @param other The source node_info to copy from.
+ * @return node_info& Reference to this object after assignment.
+ */
+node_info& operator=(const node_info&)     = default;
+    /**
+ * @brief Move-assigns from another node_info.
+ *
+ * Performs the compiler-generated (defaulted) move assignment of all member
+ * fields. The source object is left in a valid but unspecified state.
+ * This operation is noexcept.
+ *
+ * @param other Rvalue reference to the source node_info.
+ * @return node_info& Reference to this object after assignment.
+ */
+node_info& operator=(node_info&&) noexcept = default;
 
     static node_info& get_instance();
 

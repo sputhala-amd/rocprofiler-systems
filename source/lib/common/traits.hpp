@@ -60,6 +60,16 @@ inline constexpr bool is_string_literal_impl_v = is_string_literal_impl<T>::valu
 }  // namespace
 
 template <typename T>
+/**
+ * @brief Returns whether a type is considered a string-literal-like type.
+ *
+ * Decays the provided type `T` and tests whether the decayed type is one of:
+ * `std::string_view`, `std::string`, `const char*`, or `char*`. The result
+ * is available at compile time.
+ *
+ * @tparam T Type to test (will be decayed before checking).
+ * @return constexpr bool `true` if the decayed `T` is a string-literal-like type; otherwise `false`.
+ */
 constexpr bool
 is_string_literal()
 {

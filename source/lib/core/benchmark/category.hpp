@@ -47,6 +47,15 @@ enum class category
     count
 };
 
+/**
+ * @brief Convert a benchmark category to its string representation.
+ *
+ * Returns a string_view literal matching the given category enum value.
+ * Unknown or out-of-range values (including the sentinel `count`) yield "unknown".
+ *
+ * @param cat The category to convert.
+ * @return std::string_view Literal name of the category or "unknown" for unspecified values.
+ */
 constexpr std::string_view
 to_string(category cat)
 {

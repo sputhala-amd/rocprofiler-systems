@@ -71,6 +71,15 @@ using sampler_instances = thread_data<bundle_t, category::amd_smi>;
 
 namespace
 {
+/**
+ * @brief Return a stable numeric identifier for the current thread.
+ *
+ * Returns a thread-local, cached thread identifier suitable for use as a lightweight
+ * per-thread key (e.g., in maps or logs). The value is stable for the lifetime of
+ * the thread and is retrieved once per thread and cached thereafter.
+ *
+ * @return int64_t Numeric thread identifier for the calling thread.
+ */
 int64_t
 get_tid()
 {
@@ -78,12 +87,27 @@ get_tid()
     return _v;
 }
 
+/**
+ * @brief Access the global ROCPD data processor singleton.
+ *
+ * Returns a reference to the single, process-wide rocpd::data_processor instance
+ * used to register categories, tracks, and emit PMC data.
+ *
+ * @return rocpd::data_processor& Reference to the singleton data processor.
+ */
 rocpd::data_processor&
 get_data_processor()
 {
     return rocpd::data_processor::get_instance();
 }
 
+/**
+ * @brief Register the AMD SMI category with the global rocpd data processor.
+ *
+ * Inserts the AMD SMI category identifier and its human-readable name into the
+ * singleton data_processor so downstream ROCPD tracks and PMCs can be created
+ * or looked up by category.
+ */
 void
 rocpd_initialize_category()
 {
@@ -91,6 +115,13 @@ rocpd_initialize_category()
                                          trait::name<category::amd_smi>::value);
 }
 
+/**
+ * @brief Register AMD SMI metric tracks with the global ROCPD data processor.
+ *
+ * Inserts per-category tracks (MM busy, power, temperature, memory usage)
+ * into the singleton data_processor using the current node id and process id.
+ * The tracks are created without a specific thread id (internal AMD-SMI sampling).
+ */
 void
 rocpd_initialize_smi_tracks()
 {
@@ -108,6 +139,20 @@ rocpd_initialize_smi_tracks()
                                 n_info.id, getpid(), thread_id);
 }
 
+/**
+ * @brief Register ROC Profiler PMC descriptions for AMD SMI metrics of a GPU.
+ *
+ * Inserts PMC descriptions into the global rocpd::data_processor for the
+ * specified GPU so downstream ROCPD consumers can interpret samples for:
+ * - memory-mapped (MM) busy percentage,
+ * - temperature (°C),
+ * - power (W),
+ * - memory usage (MB).
+ *
+ * @param gpu_id Identifier for the GPU whose PMC descriptions should be created.
+ *               This is used to look up the agent's base_id and associate the
+ *               inserted PMC descriptions with that GPU.
+ */
 void
 rocpd_initialize_smi_pmc(size_t gpu_id)
 {
@@ -151,6 +196,22 @@ rocpd_initialize_smi_pmc(size_t gpu_id)
         COMPONENT, "MB", "ABS", BLOCK, EXPRESSION, 0, 0);
 }
 
+/**
+ * @brief Emit ROCPD PMC events and samples for AMD SMI metrics for a given GPU.
+ *
+ * Conditionally inserts PMC event(s) and corresponding samples into the global
+ * rocpd data processor for the enabled metrics in @p settings (GPU busy,
+ * temperature, power, memory usage). Uses the GPU agent's base ID to attribute
+ * emitted PMCs. If none of the metrics are enabled this function is a no-op.
+ *
+ * @param device_id GPU device identifier used to look up the agent/base ID.
+ * @param settings Per-device AMD SMI settings that indicate which metrics to emit.
+ * @param timestamp Timestamp associated with the samples.
+ * @param busy GPU busy percentage value.
+ * @param temp GPU temperature value.
+ * @param power GPU power value.
+ * @param usage GPU memory usage value.
+ */
 void
 rocpd_process_smi_pmc_events(const uint32_t device_id, const amd_smi::settings& settings,
                              uint64_t timestamp, double busy, double temp, double power,
@@ -180,6 +241,15 @@ rocpd_process_smi_pmc_events(const uint32_t device_id, const amd_smi::settings& 
                             trait::name<category::amd_smi_memory_usage>::value, usage);
 }
 
+/**
+ * @brief Retrieve the mutable AMD SMI settings for a given device.
+ *
+ * Returns a reference to the settings entry for device `_dev_id` in an internal
+ * map, creating a default-constructed settings object if none exists.
+ *
+ * @param _dev_id Device identifier used as the key for the settings lookup.
+ * @return amd_smi::settings& Reference to the settings for the specified device.
+ */
 auto&
 get_settings(uint32_t _dev_id)
 {
@@ -248,6 +318,21 @@ std::unique_ptr<data::promise_t> data::polling_finished = {};
 
 data::data(uint32_t _dev_id) { sample(_dev_id); }
 
+/**
+ * @brief Collects AMD SMI metrics for a single GPU device and stores them in this instance.
+ *
+ * Samples configured AMD SMI metrics for device `_dev_id` (timestamped) and populates
+ * instance members such as m_busy_perc, m_temp, m_power, m_mem_usage and m_xcp_metrics.
+ * Sampling is skipped if running in a child process or if the global AMD SMI state is not
+ * Active. Individual AMD SMI read failures are caught; on such an error sampling is
+ * disabled globally (state set to Disabled) to avoid repeated failures.
+ *
+ * @param _dev_id GPU device index to sample.
+ *
+ * @note This function updates internal state (member fields) and may mutate the global
+ *       AMD SMI sampling state on error. It does not throw; AMD SMI errors are handled
+ *       internally by disabling future sampling.
+ */
 void
 data::sample(uint32_t _dev_id)
 {
@@ -375,6 +460,21 @@ namespace
 std::vector<unique_ptr_t<bundle_t>*> _bundle_data{};
 }
 
+/**
+ * @brief Configure per-device sampling bundles and initialize integrations.
+ *
+ * Ensures internal bundle storage is sized for the detected GPU count, attaches
+ * per-device sampler bundles for enabled devices (creating empty bundles when
+ * needed), collects an initial sample for each enabled device, and initializes
+ * ROC Perf Data (rocpd) category and SMI tracks when rocpd usage is enabled.
+ *
+ * Side effects:
+ * - Resizes and populates _bundle_data.
+ * - May allocate new bundle_t instances for devices in data::device_list.
+ * - Calls data::get_initial().sample(...) once per enabled device.
+ * - Calls rocpd_initialize_category() and rocpd_initialize_smi_tracks() if
+ *   get_use_rocpd() returns true.
+ */
 void
 config()
 {
@@ -399,6 +499,14 @@ config()
     }
 }
 
+/**
+ * @brief Polls enabled AMD SMI devices and records a new sample for each.
+ *
+ * Acquires the AMD SMI category mutex, iterates the configured device list, and
+ * for each device in the Active sampling state appends a freshly constructed
+ * data sample to that device's bundle. Devices without an allocated bundle or
+ * when sampling is not Active are skipped.
+ */
 void
 sample()
 {
@@ -454,6 +562,23 @@ data::shutdown()
         }                                                                                \
     }
 
+/**
+ * @brief Post-processes collected AMD SMI samples for a single device.
+ *
+ * Processes the per-thread AMD SMI sample bundle for device `_dev_id`, converting
+ * collected metrics into perfetto counter tracks and/or ROC Profiler PMC events
+ * according to current settings. This will initialize perfetto counter tracks
+ * and/or ROCPD PMC descriptions on demand and emit counter samples for GPU
+ * busy, temperature, power, memory usage, and per-XCP VCN/JPEG activity when
+ * enabled.
+ *
+ * If `_dev_id` is out of range, or required thread timing information is
+ * missing/invalid for a sample, that sample is skipped. When ROCPD usage is
+ * enabled, SMI PMC descriptions/tracks will be initialized before emitting PMC
+ * events.
+ *
+ * @param _dev_id GPU device index for which to post-process samples.
+ */
 void
 data::post_process(uint32_t _dev_id)
 {
@@ -670,7 +795,25 @@ data::post_process(uint32_t _dev_id)
     }
 }
 
-//--------------------------------------------------------------------------------------//
+/**
+ * @brief Initialize AMD SMI sampling and configure per-device metrics/tracking.
+ *
+ * Acquires the AMD SMI category mutex and, if AMD SMI is enabled and not already
+ * initialized, attempts to initialize the AMD SMI library and enumerate devices.
+ * Parses the sampling GPU specification and the ROCPROFSYS_AMD_SMI_METRICS setting
+ * to build the set of devices to sample and which metrics to enable per device.
+ * On success marks the AMD SMI subsystem as initialized and invokes data::setup().
+ *
+ * Behavior and side effects:
+ * - Returns immediately if already initialized or AMD SMI use is disabled.
+ * - Calls gpu::initialize_amdsmi() and logs/returns early if AMD SMI is unavailable.
+ * - Sets data::device_count and data::device_list based on the sampling GPU spec.
+ * - Interprets special strings "off"/"none", "on"/"all", numeric IDs, and ranges (N-M).
+ * - Configures per-device metric enablement according to ROCPROFSYS_AMD_SMI_METRICS.
+ * - Marks the subsystem initialized (is_initialized() set to true) and calls data::setup().
+ * - Exceptions thrown during configuration are caught; on error device_list is cleared
+ *   and initialization is not completed.
+ */
 
 void
 setup()
@@ -819,6 +962,12 @@ shutdown()
     is_initialized() = false;
 }
 
+/**
+ * @brief Post-process collected AMD SMI samples for all enabled devices.
+ *
+ * Iterates the configured device_list and invokes data::post_process(device_id)
+ * for each device.
+ */
 void
 post_process()
 {
@@ -829,6 +978,11 @@ post_process()
     }
 }
 
+/**
+ * @brief Get the number of available GPU devices.
+ *
+ * @return uint32_t The count of GPU devices as reported by gpu::device_count().
+ */
 uint32_t
 device_count()
 {

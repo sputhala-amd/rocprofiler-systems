@@ -133,6 +133,25 @@ strlength(Tp&& _v)
 }
 
 template <typename Arg, typename... Args>
+/**
+ * @brief Determine whether one or more profiling name components violate naming rules.
+ *
+ * Evaluates the provided name arguments and returns true when they should be rejected for
+ * profiling:
+ * - If causal profiling is enabled and the first argument begins with "Kokkos::" or any
+ *   argument contains "Space::", the name is considered a violation.
+ * - If the combined length of all name arguments is zero, the name is considered a violation.
+ * - If the global name-length limit (_name_len_limit) is zero, names are always allowed.
+ * - Otherwise, the name is a violation when the total length is greater than or equal to
+ *   _name_len_limit.
+ *
+ * The function does not modify its inputs.
+ *
+ * @tparam Arg, Args Types convertible to strings (e.g., string, string_view, C-string).
+ * @param _arg First name component.
+ * @param _args Remaining name components.
+ * @return true if the supplied name components violate the naming rules; false otherwise.
+ */
 bool
 violates_name_rules(Arg&& _arg, Args&&... _args)
 {
@@ -157,12 +176,27 @@ violates_name_rules(Arg&& _arg, Args&&... _args)
 
 namespace
 {
+/**
+ * @brief Get the singleton rocpd data processor.
+ *
+ * Returns the global rocprofsys::rocpd::data_processor instance used to submit
+ * Kokkos events and samples to the rocpd pipeline.
+ *
+ * @return rocprofsys::rocpd::data_processor& Reference to the singleton data processor.
+ */
 rocprofsys::rocpd::data_processor&
 get_data_processor()
 {
     return rocprofsys::rocpd::data_processor::get_instance();
 }
 
+/**
+ * @brief Register the Kokkos category with the rocpd data processor.
+ *
+ * Inserts a category entry into the global rocpd data_processor using the
+ * predefined category id and name for Kokkos. This ensures subsequent Kokkos
+ * events and samples are recorded under the correct category.
+ */
 void
 rocpd_initialize_kokkos_category()
 {
@@ -171,6 +205,16 @@ rocpd_initialize_kokkos_category()
         rocprofsys::trait::name<category::kokkos>::value);
 }
 
+/**
+ * @brief Register a Kokkos track with the global rocpd data processor.
+ *
+ * Inserts a tracking entry for the Kokkos category into the shared
+ * rocpd::data_processor using the current node id and process id. The
+ * track is created without an associated thread id (thread id left null).
+ *
+ * This makes Kokkos events and samples identifiable in the rocpd data stream
+ * under the Kokkos category for the current node and process.
+ */
 void
 rocpd_initialize_kokkos_track()
 {
@@ -182,6 +226,19 @@ rocpd_initialize_kokkos_track()
                                 n_info.id, getpid(), thread_id);
 }
 
+/**
+ * @brief Record a Kokkos-related event into the rocpd data processor.
+ *
+ * Creates a small JSON metadata object containing the event name, type, and
+ * target, inserts it as an event in the rocpd data processor under the
+ * Kokkos category, and then inserts a timestamped sample that references the
+ * newly created event.
+ *
+ * @param name Human-readable name of the Kokkos event (e.g., kernel or region name).
+ * @param event_type Short tag describing the event type (e.g., "sync", "modify").
+ * @param target Target device or domain for the event (e.g., "device", "host").
+ * @param timestamp_ns Monotonic timestamp for the sample, in nanoseconds.
+ */
 void
 rocpd_process_kokkos_event(const char* name, const char* event_type, const char* target,
                            uint64_t timestamp_ns)
@@ -252,6 +309,28 @@ extern "C"
         if(_version > 0) _settings->requires_global_fencing = false;
     }
 
+    /**
+     * @brief Initialize the rocprof-sys Kokkos connector.
+     *
+     * Initializes connector state when the Kokkos Tools library is loaded. Depending
+     * runtime configuration and process state this may perform a standalone
+     * initialization of rocprof-sys (including hidden-mode init and trace push),
+     * register rocpd Kokkos category/track, enable the internal memory tracker, set
+     * up kernel logging, and read connector-specific configuration values
+     * (name length limit, profiling prefix, deep-copy tracking).
+     *
+     * This function has global side effects: it may modify connector global state,
+     * initialize rocprof-sys, and install rocpd metadata/track entries when enabled.
+     *
+     * @param loadSeq Loader sequence number passed by Kokkos.
+     * @param interfaceVer Kokkos tools interface version provided by the runtime.
+     * @param devInfoCount Count of device info entries (consumed but not used).
+     * @param deviceInfo Pointer to device info (consumed but not used).
+     *
+     * @note The function will abort the process if it detects an incompatible or
+     * duplicate rocprof-sys library already loaded (to prevent duplicate
+     * collection).
+     */
     void kokkosp_init_library(const int loadSeq, const uint64_t interfaceVer,
                               const uint32_t devInfoCount, void* deviceInfo)
     {
@@ -596,7 +675,18 @@ extern "C"
         kokkosp::profiler_t<kokkosp_region>{ _name }.mark();
     }
 
-    //----------------------------------------------------------------------------------//
+    /**
+     * @brief Record a Kokkos dual-view synchronization event for tracing and profiling.
+     *
+     * Captures a high-resolution timestamp and, depending on runtime configuration,
+     * emits an instant Perfetto trace event, records a causal/profile mark, and/or
+     * forwards a Kokkos event to the rocpd data processor. If the provided name
+     * violates configured naming rules, the call is a no-op.
+     *
+     * @param label Human-readable region/label for the dual-view sync (used in traces and events).
+     * @param /*unused*/ Unused pointer parameter retained for API compatibility.
+     * @param is_device If true, the event is marked as targeting the device; otherwise targets the host.
+     */
 
     void kokkosp_dual_view_sync(const char* label, const void* const, bool is_device)
     {
@@ -627,6 +717,19 @@ extern "C"
         }
     }
 
+    /**
+     * @brief Record a "dual view modify" event for a Kokkos DualView.
+     *
+     * Records an instantaneous "dual_view_modify" event targeted at either the device
+     * or the host, depending on runtime configuration. Depending on which backends
+     * are enabled, this will emit a Perfetto instant trace, mark a causal profiler
+     * entry, and/or submit a rocpd event with a high-resolution timestamp.
+     *
+     * If the provided label violates configured naming rules, the function is a no-op.
+     *
+     * @param label Human-readable label identifying the DualView.
+     * @param is_device True if the modification target is the device; false for host.
+     */
     void kokkosp_dual_view_modify(const char* label, const void* const, bool is_device)
     {
         if(violates_name_rules(label)) return;

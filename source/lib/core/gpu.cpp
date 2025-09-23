@@ -89,6 +89,19 @@ _amdsmi_is_initialized()
     return initialized;
 }
 
+/**
+ * @brief Initialize the AMD SMI library and populate processor handles.
+ *
+ * Attempts to initialize AMD SMI (using AMDSMI_INIT_AMD_GPUS), calls get_processor_handles()
+ * to gather GPU processor handles and records the initialization state. Any exceptions thrown
+ * during initialization are caught, logged, and cause the function to report failure without
+ * propagating the exception.
+ *
+ * Notes:
+ * - Currently only AMDSMI_INIT_AMD_GPUS is used.
+ *
+ * @return true if AMD SMI was initialized successfully and processor handles were obtained; false otherwise.
+ */
 bool
 amdsmi_init()
 {
@@ -111,7 +124,17 @@ amdsmi_init()
 
     return _amdsmi_init;
 }
-#endif  // ROCPROFSYS_USE_ROCM > 0
+#endif  /**
+ * @brief Discovers ROCm agents and registers them with the global agent manager.
+ *
+ * Queries available ROCprofiler agents (GPUs and CPUs), creates internal agent
+ * records for each discovered agent, and inserts them into agent_manager.
+ * The function returns the number of GPU agents currently registered.
+ *
+ * This is a no-op when ROCm support is disabled (returns 0).
+ *
+ * @return size_t Number of GPU agents discovered and registered.
+ */
 
 size_t
 query_rocm_agents()
@@ -156,7 +179,15 @@ query_rocm_agents()
 #endif
     return _dev_cnt;
 }
-}  // namespace
+}  /**
+ * @brief Return the number of detected ROCm devices (GPUs).
+ *
+ * On ROCm-enabled builds this queries available agents once (via query_rocm_agents)
+ * and caches the result for subsequent calls. The cached value is initialized
+ * on first call using function-local static initialization (thread-safe since C++11).
+ *
+ * @return int Number of detected GPU devices (>= 0). Returns 0 when built without ROCm support.
+ */
 
 int
 device_count()
@@ -182,6 +213,23 @@ initialize_amdsmi()
 }
 
 template <typename ArchiveT>
+/**
+ * @brief Serialize ROCm GPU agent metadata into the given archive.
+ *
+ * If ROCm support is enabled (ROCPROFSYS_USE_ROCM > 0) this function queries
+ * available ROCprofiler agents, collects agents of type GPU into a vector of
+ * `rocprofiler_agent_v0_t`, and writes that vector into the provided archive
+ * using the name "rocm_agents".
+ *
+ * When ROCm is disabled the function is a no-op.
+ *
+ * Any exceptions thrown while querying available agents are caught; they are
+ * logged and not propagated.
+ *
+ * @tparam ArchiveT Archive type compatible with tim::cereal used to serialize
+ *                  the collected agent vector.
+ * @param ar The archive to which the GPU agent metadata is serialized.
+ */
 void
 add_device_metadata(ArchiveT& ar)
 {
@@ -251,6 +299,19 @@ std::vector<bool>                    processors::jpeg_activity_supported = {};
 std::vector<bool>                    processors::vcn_busy_supported      = {};
 std::vector<bool>                    processors::jpeg_busy_supported     = {};
 
+/**
+ * @brief Populate internal AMD processor handles and per-processor capability flags.
+ *
+ * Queries AMD SMI for socket and processor handles, filters for AMD GPU processors,
+ * and fills processors::processors_list along with the per-processor capability vectors:
+ * processors::vcn_activity_supported, processors::jpeg_activity_supported,
+ * processors::vcn_busy_supported, processors::jpeg_busy_supported and updates
+ * processors::total_processor_count.
+ *
+ * If AMD SMI calls fail at any step, the function returns early and leaves the
+ * already-populated state (if any) as-is. If a discovered processor is not of type
+ * AMDSMI_PROCESSOR_TYPE_AMD_GPU, a ROCPROFSYS_THROW is raised.
+ */
 void
 get_processor_handles()
 {

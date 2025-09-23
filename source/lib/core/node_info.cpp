@@ -31,6 +31,24 @@
 namespace rocprofsys
 {
 
+/**
+ * @brief Construct a node_info by reading machine and OS identity information.
+ *
+ * Attempts to initialize node identity from /etc/machine-id and the system
+ * uname(2) information. On construction it:
+ * - Tries to read the machine ID from /etc/machine-id; if the file cannot be
+ *   opened a warning is emitted and initialization stops early.
+ * - If the file is opened but no machine ID can be read, a warning is emitted
+ *   and initialization continues with an empty machine_id.
+ * - Computes `hash` as std::hash<std::string>(machine_id) normalized to
+ *   fit in an int64_t, and `id` as `hash` modulo size_t max.
+ * - Calls uname(2) to populate system_name, node_name, release, version,
+ *   machine, and domain_name; if uname fails a warning is emitted and
+ *   remaining fields are not populated.
+ *
+ * All warnings are emitted via ROCPROFSYS_WARNING. The constructor does not
+ * throw exceptions.
+ */
 node_info::node_info()
 {
     auto ifs = std::ifstream{ "/etc/machine-id" };
@@ -62,6 +80,15 @@ node_info::node_info()
     domain_name = _sys_info.domainname;
 }
 
+/**
+ * @brief Returns the program-wide singleton node_info instance.
+ *
+ * The instance is created on first call as a function-local static and then
+ * reused for the lifetime of the program. Use this to obtain a reference to
+ * the shared node_info containing the system/machine identity information.
+ *
+ * @return node_info& Reference to the single shared node_info instance.
+ */
 node_info&
 node_info::get_instance()
 {
