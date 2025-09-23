@@ -307,6 +307,16 @@ namespace
 bool                  _set_mpi_called   = false;
 std::function<void()> _preinit_callback = []() { get_preinit_bundle()->start(); };
 
+/**
+ * @brief Read a process's command-line arguments from /proc/<pid>/cmdline.
+ *
+ * Reads the null-separated entries from /proc/<pid>/cmdline and returns them
+ * as a vector of strings in the same order as the process's argv.
+ *
+ * @param _pid Process id whose command line will be read.
+ * @return std::vector<std::string> List of command-line arguments; empty if the
+ * file cannot be opened or no arguments are present.
+ */
 std::vector<std::string>
 read_command_line(pid_t _pid)
 {
@@ -327,6 +337,21 @@ read_command_line(pid_t _pid)
     return _cmdline;
 }
 
+/**
+ * @brief Populate the ROCPD data processor with node, process, and agent metadata.
+ *
+ * Inserts the current node and process information into the global rocpd::data_processor
+ * and registers all agents from agent_manager. If the current process command line
+ * cannot be read, a fallback argv of "rocprofiler-systems" is used. For each registered
+ * agent this function creates a corresponding rocpd agent entry and stores the
+ * returned base id back into the agent's `base_id` field.
+ *
+ * Side effects:
+ * - Calls read_command_line(getpid()) to obtain argv for the process.
+ * - Uses getpid() and getppid() for process identifiers.
+ * - Mutates the global rocpd::data_processor by inserting node, process, and agent records.
+ * - Updates agent objects (agent_manager) with their assigned rocpd base ids.
+ */
 void
 rocprofsys_preinit_rocpd()
 {
@@ -361,12 +386,27 @@ rocprofsys_preinit_rocpd()
     }
 }
 
+/**
+ * @brief Trigger discovery of CPU agents.
+ *
+ * Performs a one-time (idempotent) query of available CPU agents and registers
+ * them with the internal agent manager for use by preinit/monitoring subsystems.
+ * Safe to call during early initialization.
+ */
 void
 rocprofsys_preinit_cpu_agents()
 {
     cpu::query_cpu_agents();
 }
 
+/**
+ * @brief Invoke the one-time preinitialization callback.
+ *
+ * Executes the stored preinit callback exactly once and then replaces it with an
+ * empty no-op so subsequent calls are safe (idempotent). Used to perform
+ * early one-time setup tasks (e.g., agent discovery, rocpd population) before
+ * normal initialization proceeds.
+ */
 void
 rocprofsys_preinit_hidden()
 {
@@ -475,7 +515,31 @@ rocprofsys_init_library_hidden()
 
 //======================================================================================//
 
-extern "C" bool
+extern "C" /**
+ * @brief Initialize rocprofsys tooling and subsystems (sampling, gotchas, timemory, Perfetto, etc.).
+ *
+ * Performs the one-time tooling initialization path for the current process. When called
+ * successfully this function will ensure the library is initialized (via
+ * rocprofsys_init_library_hidden), configure and start optional subsystems (process/causal/sampling,
+ * VA-API tracing, Perfetto, OMPT, timemory instrumentation, tasking, categories, and related gotchas),
+ * and arrange for the main instrumentation bundle to be started and the global state to transition to
+ * Active.
+ *
+ * This function is guarded to be idempotent within a process:
+ * - It returns false and does nothing if the runtime is not in the PreInit state, if initialization
+ *   has already been performed in this process, or if tooling initialization was disabled by
+ *   environment/settings.
+ *
+ * Side effects:
+ * - May load runtime libraries required for ROCm tooling.
+ * - Starts various background samplers, gotchas, and instrumentation bundles depending on runtime
+ *   configuration.
+ * - Changes the global rocprofsys state to Active when initialization completes.
+ *
+ * @return true if tooling initialization was performed and the process entered Active state;
+ *         false if initialization was skipped (already initialized, disabled by settings, or wrong state).
+ */
+bool
 rocprofsys_init_tooling_hidden(void)
 {
     if(get_env("ROCPROFSYS_MONOCHROME", false, false)) tim::log::monochrome() = true;
@@ -748,7 +812,31 @@ rocprofsys_reset_preload_hidden(void)
 
 //======================================================================================//
 
-extern "C" void
+extern "C" /**
+ * @brief Perform library finalization and shutdown all instrumentation and subsystems.
+ *
+ * This function performs the complete finalization sequence for rocprofsys:
+ * - disables thread-id recycling and initialization callbacks,
+ * - transitions the library state to Finalized (unless already non-active),
+ * - in child processes, optionally shuts down ROCm and flushes rocpd then calls std::quick_exit,
+ * - blocks sampling and signals, stops per-thread and global instrumentation bundles and gotchas,
+ * - shuts down sampling, causal/process samplers, tasking, VA-API/OMPT/Perfetto subsystems as enabled,
+ * - post-processes collected samples, writes timemory metadata, finalizes the timemory manager,
+ * - flushes rocpd (if enabled), restores signal handlers, destroys static objects, and prints summaries.
+ *
+ * Side effects:
+ * - Alters global library state and thread state.
+ * - Stops and destroys instrumentation and sampling subsystems.
+ * - May call std::quick_exit(EXIT_SUCCESS) for child processes.
+ * - Writes output files/metadata and may emit diagnostics to stderr.
+ *
+ * Error conditions:
+ * - If enabled, Perfetto finalization failures cause an exception via ROCPROFSYS_THROW.
+ * - A push/pop imbalance (more pushes than pops) triggers a CI assertion via ROCPROFSYS_CI_THROW.
+ *
+ * This function does not take parameters and does not return a value.
+ */
+void
 rocprofsys_finalize_hidden(void)
 {
     // disable thread id recycling during finalization

@@ -157,12 +157,31 @@ namespace
 using sampler_allocator_t = typename sampler_t::allocator_t;
 
 template <typename Category>
+/**
+ * @brief Build a track name for a sampling category and thread.
+ *
+ * Combines the category's trait::name value and the thread id with an underscore
+ * separator (e.g., `sampling_1234`).
+ *
+ * @tparam Category Sampling category type whose trait::name provides the prefix.
+ * @param tid Thread identifier appended to the category name.
+ * @return std::string The resulting track name.
+ */
 inline std::string
 get_category_track_name(uint64_t tid)
 {
     return std::string(trait::name<Category>::value) + "_" + std::to_string(tid);
 }
 
+/**
+ * @brief Serialize an unwound stack entry into a JSON string.
+ *
+ * Constructs a JSON object with the symbol name, program counter (hex),
+ * and source location for the given processed unwind entry.
+ *
+ * @param stack_entry Unwound entry containing symbol name, address, and location.
+ * @return std::string JSON string with keys "name", "pc", and "file".
+ */
 std::string
 generate_call_stack_json(const tim::unwind::processed_entry& stack_entry)
 {
@@ -175,6 +194,23 @@ generate_call_stack_json(const tim::unwind::processed_entry& stack_entry)
     return call_stack->to_string();
 }
 
+/**
+ * @brief Build a JSON representation of a single unwind line-info entry.
+ *
+ * Constructs a JSON object with the entry's address and demangled symbol name,
+ * and, if available, an inlined call-stack trace with each frame's demangled
+ * name, source location, and line number. Inlined frames are added in reverse
+ * order (innermost first).
+ *
+ * @param line_info_entry Unwound entry containing the line address, symbol
+ *        name, and optional source-level `lineinfo` (possibly with inlined
+ *        frames).
+ * @return std::string JSON string containing at minimum the keys:
+ *         - "line_address" : hex string of the address
+ *         - "name"         : demangled symbol name
+ *         - "inlined"      : zero or more objects with keys "name", "location",
+ *                            and "line" for inlined frames
+ */
 std::string
 generate_line_info_json(const tim::unwind::processed_entry& line_info_entry)
 {
@@ -199,6 +235,18 @@ generate_line_info_json(const tim::unwind::processed_entry& line_info_entry)
     return line_info->to_string();
 }
 
+/**
+ * @brief Build a JSON payload containing hardware counter values for a sample.
+ *
+ * Given a thread id and a backtrace_metrics object, constructs a JSON object
+ * with a single "hw_counters" member mapping counter label -> value when
+ * the metrics contain hardware counter values. If no hardware counters are
+ * present, an empty JSON object is returned.
+ *
+ * @param _tid Thread identifier used to obtain hardware counter labels.
+ * @param metrics Source of hardware counter values.
+ * @return std::string JSON string representation of the constructed object.
+ */
 std::string
 generate_hw_counter_json(int64_t _tid, const backtrace_metrics& metrics)
 {
@@ -221,12 +269,28 @@ generate_hw_counter_json(int64_t _tid, const backtrace_metrics& metrics)
     return extdata->to_string();
 }
 
+/**
+ * @brief Returns the singleton rocpd data processor instance.
+ *
+ * Provides access to the global rocpd::data_processor used for inserting
+ * threads, tracks, and regions. The returned reference refers to the
+ * program-wide singleton managed by rocpd::data_processor::get_instance().
+ *
+ * @return rocpd::data_processor& Reference to the global data_processor singleton.
+ */
 rocpd::data_processor&
 get_data_processor()
 {
     return rocpd::data_processor::get_instance();
 }
 
+/**
+ * @brief Register sampling-related categories with the ROCpd data processor.
+ *
+ * Ensures the three sampling categories (sampling, overflow_sampling, timer_sampling)
+ * are inserted into the global data_processor exactly once. Subsequent calls are
+ * no-ops.
+ */
 void
 rocpd_initialize_sampling_category()
 {
@@ -244,6 +308,19 @@ rocpd_initialize_sampling_category()
     _is_initialized = true;
 }
 
+/**
+ * @brief Insert current thread information into the ROCpd data processor.
+ *
+ * Retrieves the thread_info for the given thread identifier and registers it
+ * with the global rocpd data_processor (including node id, parent/process ids,
+ * system thread id, thread name, start/stop times, and an empty metadata JSON).
+ *
+ * @param tid Thread index/identifier used to look up thread_info.
+ * @return size_t The id assigned by the data_processor for the inserted thread,
+ *         or (size_t)-1 on error.
+ *
+ * @throws If no valid thread_info exists for the given tid, an error is raised.
+ */
 size_t
 rocpd_initialize_thread_info(size_t tid)
 {
@@ -260,6 +337,16 @@ rocpd_initialize_thread_info(size_t tid)
         _thread_info->get_stop(), "{}");
 }
 
+/**
+ * @brief Register a thread-specific track with the ROCpd data processor.
+ *
+ * Inserts a track entry into the global ROCpd data_processor using the current
+ * node id and process id so samples for the given thread can be associated
+ * with a named track.
+ *
+ * @param track_name Human-readable name for the track.
+ * @param tid Thread id (OS-level) to associate with the track.
+ */
 void
 rocpd_init_track(const char* track_name, int64_t tid)
 {
@@ -270,6 +357,22 @@ rocpd_init_track(const char* track_name, int64_t tid)
 }
 
 template <typename Category>
+/**
+ * @brief Insert a sampled event, region, and an associated sample into the ROCpd data processor.
+ *
+ * Creates an event with the provided call stack, line information, and extended data, then
+ * inserts a region tied to the current node and process for the given thread and time range,
+ * and finally records a sample on the specified track at the region start time.
+ *
+ * @param thread_id Thread identifier to associate the region and sample with.
+ * @param start_time Region start timestamp (monotonic tick/count unit used by the data processor).
+ * @param end_time Region end timestamp (same unit as start_time).
+ * @param name_id Identifier for the region name (interned/registered name id).
+ * @param track Null-terminated track name used when inserting the sample.
+ * @param call_stack JSON string describing the call stack payload (defaults to "{}").
+ * @param line_info JSON string describing line/inline information for the event (defaults to "{}").
+ * @param extdata JSON string with any additional event metadata (defaults to "{}").
+ */
 void
 rocpd_insert_region(size_t thread_id, size_t start_time, size_t end_time, size_t name_id,
                     const char* track, const char* call_stack = "{}",
@@ -286,6 +389,17 @@ rocpd_insert_region(size_t thread_id, size_t start_time, size_t end_time, size_t
     data_processor.insert_sample(track, start_time, event_id);
 }
 
+/**
+ * @brief Returns the process-wide container of sampler allocator instances.
+ *
+ * Provides access to a single static std::vector holding shared pointers to
+ * sampler_allocator_t. The vector is lazily initialized on first call and
+ * lives for the program lifetime. The returned reference may be used to read,
+ * add, or remove allocator instances.
+ *
+ * @return std::vector<std::shared_ptr<sampler_allocator_t>>& Reference to the
+ *         singleton container of sampler allocators.
+ */
 auto&
 get_sampler_allocators()
 {
@@ -1026,6 +1140,16 @@ unblock_signals(std::set<int> _signals)
     thread_sigmask(SIG_UNBLOCK, &_v, nullptr);
 }
 
+/**
+ * @brief Finalizes sampling and performs end-of-run post-processing.
+ *
+ * Stops sampling components, flushes and collects per-thread sampler data,
+ * filters and aggregates valid samples, and forwards processed timer and
+ * overflow records to enabled backends (Perfetto, Timemory, ROCpd).
+ *
+ * This routine also tears down samplers and allocators, removes any temporary
+ * offload file, and emits a summary of collected samples and threads.
+ */
 void
 post_process()
 {
@@ -1253,6 +1377,26 @@ post_process_overflow_data(int64_t                       _tid, const bundle_t*,
     return _results;
 }
 
+/**
+ * @brief Convert collected timer and overflow sampling data into Perfetto traces.
+ *
+ * Processes per-thread sampling results and emits Perfetto track events and annotations
+ * for overflow and timer samples. If backtrace metrics are enabled, the function
+ * initializes Perfetto metric collection, posts metric samples, and finalizes metrics.
+ * For overflow samples it creates a top-level overflow track and per-sample events with
+ * call-stack frames and optional source/line annotations. For timer samples it creates a
+ * timer track and emits per-frame events, optionally including inline frames and
+ * hardware-counter annotations.
+ *
+ * @param _tid Thread id for which the samples were collected; used to look up thread
+ *             lifetime and index data for track naming and to associate metrics.
+ * @param _timer_data Sorted vector of timer_sampling_data containing time-windowed
+ *                    stacked backtraces and optional hardware-counter metrics.
+ * @param _overflow_data Sorted vector of overflow_sampling_data containing individual
+ *                       overflow-sample call chains and timestamps.
+ *
+ * @throws std::runtime_error If no valid thread_info exists for `_tid`.
+ */
 void
 post_process_perfetto(int64_t _tid, const std::vector<timer_sampling_data>& _timer_data,
                       const std::vector<overflow_sampling_data>& _overflow_data)
@@ -1509,6 +1653,21 @@ post_process_perfetto(int64_t _tid, const std::vector<timer_sampling_data>& _tim
     }
 }
 
+/**
+ * @brief Convert collected sampling data into timemory components and record them.
+ *
+ * Processes per-thread timer and overflow sampling results by constructing
+ * tim::lightweight_tuple instances for each sample stack entry, populating
+ * sampling components (wall clock, CPU clock, hardware counters, percent, etc.),
+ * and finalizing/storing their values so they are visible to timemory.
+ *
+ * This function has no return value; it mutates timemory component instances
+ * and relies on timemory internals to record/aggregate the produced measurements.
+ *
+ * @param _tid Thread id that produced the sampling data; propagated into created component instances.
+ * @param _timer_data Vector of timer_sampling_data, each representing a timed window with stacked samples and optional hardware counter metrics.
+ * @param _overflow_data Vector of overflow_sampling_data, each representing overflow-sampled call stacks to be recorded as samples.
+ */
 void
 post_process_timemory(int64_t _tid, const std::vector<timer_sampling_data>& _timer_data,
                       const std::vector<overflow_sampling_data>& _overflow_data)
@@ -1678,6 +1837,24 @@ post_process_timemory(int64_t _tid, const std::vector<timer_sampling_data>& _tim
     }
 }
 
+/**
+ * @brief Convert collected overflow samples into ROCpd events and insert them.
+ *
+ * Processes per-thread overflow sampling results and inserts corresponding
+ * thread/track/region entries into the ROCpd data processor. For each thread,
+ * this will:
+ * - validate thread lifetime,
+ * - create a top-level overflow samples region,
+ * - create per-sample regions for each stack frame, attaching call-stack and
+ *   line-info JSON payloads when available.
+ *
+ * @param _tid POSIX thread id (sequential id used to look up thread_info).
+ * @param _overflow_data Vector of overflow_sampling_data for the thread; each
+ *        element represents a time-bounded overflow sample with an unwound
+ *        stack.
+ *
+ * @throws std::runtime_error If no valid thread_info exists for the given tid.
+ */
 void
 rocpd_post_process_overflow_data(
     int64_t _tid, const std::vector<overflow_sampling_data>& _overflow_data)
@@ -1737,6 +1914,19 @@ rocpd_post_process_overflow_data(
     }
 }
 
+/**
+ * @brief Post-processes backtrace hardware-counter metrics for ROCpd for a thread.
+ *
+ * Computes the union of valid counters from the provided timer samples and, if
+ * backtrace metrics are enabled at runtime and ROCpd output is active, initializes
+ * ROCpd metric collection for the thread, posts each sample's metrics (using the
+ * sample midpoint timestamp), and finalizes ROCpd metric collection.
+ *
+ * @param _tid Thread id for which metrics are posted.
+ * @param _timer_data Vector of timer_sampling_data whose m_metrics fields supply
+ *                    per-sample hardware-counter values. Only the union of valid
+ *                    counters across these samples is used to initialize/finalize ROCpd.
+ */
 void
 rocpd_post_process_backtrace_metrics(int64_t                                 _tid,
                                      const std::vector<timer_sampling_data>& _timer_data)
@@ -1759,6 +1949,28 @@ rocpd_post_process_backtrace_metrics(int64_t                                 _ti
     }
 }
 
+/**
+ * @brief Convert per-thread timer samples into ROCpd regions and insert them into the
+ *        ROCpd data processor.
+ *
+ * This function validates the thread, initializes ROCpd thread/track state, optionally
+ * records aggregated backtrace metrics, and inserts a top-level "samples [rocprof-sys]"
+ * region spanning the timer data. For each timer sample it inserts one or more ROCpd
+ * regions representing call-stack frames (and optionally inlined frames), attaching
+ * call-stack JSON, line information JSON, and hardware-counter JSON when available.
+ *
+ * Side effects:
+ * - Registers thread and track entries in the ROCpd data processor.
+ * - Inserts strings and region/sample records into the ROCpd data processor.
+ *
+ * @param _tid Thread identifier corresponding to the samples in _timer_data.
+ * @param _timer_data Ordered timer samples for the thread; each entry's begin/end
+ *                    timestamps and associated call-stack/metrics are used to create
+ *                    ROCpd regions.
+ *
+ * @throws std::runtime_error if no valid thread info exists for _tid (via
+ *         ROCPROFSYS_CI_THROW).
+ */
 void
 rocpd_post_process_timer_data(int64_t                                 _tid,
                               const std::vector<timer_sampling_data>& _timer_data)
@@ -1852,6 +2064,22 @@ rocpd_post_process_timer_data(int64_t                                 _tid,
     }
 }
 
+/**
+ * @brief Post-process sampling results and submit them to ROCpd.
+ *
+ * Initializes ROCpd sampling categories (idempotent) and converts the collected
+ * timer and overflow sampling data for thread `_tid` into ROCpd events, tracks,
+ * and associated payloads.
+ *
+ * @param _tid Thread identifier whose sampling data will be processed.
+ * @param _timer_data Vector of timer-based sampling windows (begin/end stacks and metrics)
+ *                    to be converted into ROCpd regions and samples.
+ * @param _overflow_data Vector of overflow (interrupt) samples to be converted into
+ *                       ROCpd samples and associated call-stack annotations.
+ *
+ * Side effects: populates the global ROCpd data_processor with thread/track/event
+ *               records derived from the provided sampling data.
+ */
 void
 post_process_rocpd(int64_t _tid, const std::vector<timer_sampling_data>& _timer_data,
                    const std::vector<overflow_sampling_data>& _overflow_data)
@@ -1863,6 +2091,14 @@ post_process_rocpd(int64_t _tid, const std::vector<timer_sampling_data>& _timer_
 
 struct sampling_initialization
 {
+    /**
+     * @brief Initialize labels, descriptions, units, precision, and display formatting for sampling metrics.
+     *
+     * Sets human-readable labels, descriptions, display units, numeric precision, and formatting flags
+     * for the various sampling-related metrics (wall/cpu clocks, sample percentage, GPU utilization,
+     * GPU memory, power, temperature, and specific GPU block utilizations). Intended to be run at
+     * program pre-initialization so the metrics have consistent metadata before use.
+     */
     static void preinit()
     {
         sampling_wall_clock::label()       = "sampling_wall_clock";

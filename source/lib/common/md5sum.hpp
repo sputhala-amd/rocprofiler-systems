@@ -46,13 +46,55 @@ public:
     template <typename Tp, typename... Args>
     explicit md5sum(Tp&& arg, Args&&... args);
 
-    md5sum()              = default;
-    ~md5sum()             = default;
-    md5sum(const md5sum&) = default;
-    md5sum(md5sum&&)      = default;
+    /**
+ * @brief Default-constructs an MD5 accumulator.
+ *
+ * Constructs an md5sum object in its initial state, ready to accept data via update()
+ * and later produce a digest with finalize()/hexdigest().
+ */
+md5sum()              = default;
+    /**
+ * @brief Default destructor.
+ *
+ * Destroys the md5sum instance and its members.
+ */
+~md5sum()             = default;
+    /**
+ * @brief Default copy constructor.
+ *
+ * Creates a new md5sum by performing a memberwise copy of the source object.
+ * The new instance begins with the same internal state, buffer, counters and
+ * finalized/digest values as the original; subsequent modifications to one
+ * object do not affect the other.
+ */
+md5sum(const md5sum&) = default;
+    /**
+ * @brief Move constructor.
+ *
+ * Constructs a new md5sum by moving the state from another instance.
+ * Performs member-wise move of internal buffers and state; the source object
+ * is left in a valid but unspecified state.
+ */
+md5sum(md5sum&&)      = default;
 
-    md5sum& operator=(const md5sum&) = default;
-    md5sum& operator=(md5sum&&)      = default;
+    /**
+ * @brief Copy-assigns the MD5 computation state.
+ *
+ * Performs a memberwise copy of all internal state (finalized flag, counters,
+ * buffer, state words, and digest). After assignment, the target object
+ * represents the same MD5 computation state as the source.
+ *
+ * @return Reference to this md5sum after assignment.
+ */
+md5sum& operator=(const md5sum&) = default;
+    /**
+ * @brief Move-assigns the contents of another md5sum into this one.
+ *
+ * Performs a move assignment of the internal MD5 state, buffer, and digest.
+ * The source object is left in a valid but unspecified state. Returns a
+ * reference to *this.
+ */
+md5sum& operator=(md5sum&&)      = default;
 
     md5sum&      update(std::string_view inp);
     md5sum&      update(const unsigned char* buf, size_type length);
@@ -60,7 +102,12 @@ public:
     md5sum&      finalize();
     std::string  hexdigest() const;
     std::string  hexliteral() const;
-    raw_digest_t rawdigest() const { return digest; }
+    /**
+ * @brief Return the raw 16-byte MD5 digest.
+ *
+ * @return raw_digest_t The 16-byte digest produced by the MD5 computation.
+ */
+raw_digest_t rawdigest() const { return digest; }
 
     template <typename Tp,
               typename Up = std::enable_if_t<std::is_arithmetic<Tp>::value, int>>
@@ -81,6 +128,17 @@ private:
 };
 
 template <typename Tp, typename... Args>
+/**
+ * @brief Construct an md5sum by consuming one or more input values.
+ *
+ * This templated constructor feeds each provided argument into the MD5
+ * update pipeline (via md5sum::update) and then finalizes the digest.
+ *
+ * Each argument is perfectly-forwarded to update; pointer types are rejected
+ * at compile time (static_assert). After all inputs are processed, finalize()
+ * is invoked so the object holds a completed digest (hexdigest(), rawdigest(),
+ * and hexliteral() become available).
+ */
 md5sum::md5sum(Tp&& arg, Args&&... args)
 {
     auto _update = [&](auto&& _val) {
@@ -97,6 +155,19 @@ md5sum::md5sum(Tp&& arg, Args&&... args)
 }
 
 template <typename Tp, typename Up>
+/**
+ * @brief Update the MD5 state with the raw byte representation of an arithmetic value.
+ *
+ * The template is constrained to arithmetic types; the object is treated as a POD
+ * byte sequence and its in-memory representation (sizeof(Tp) bytes) is fed into
+ * the hash. This performs no textual or numeric serialization — use explicit
+ * conversions beforehand if a platform-independent encoding is required.
+ *
+ * @tparam Tp An arithmetic type (integral or floating point). A static assert
+ *            enforces this constraint.
+ * @param inp Value whose bytes will be appended to the MD5 input stream.
+ * @return Reference to this md5sum instance to allow chaining.
+ */
 md5sum&
 md5sum::update(Tp inp)
 {
@@ -106,6 +177,22 @@ md5sum::update(Tp inp)
 
 template <template <typename, typename...> class ContainerT, typename Tp,
           typename... TailT>
+/**
+ * @brief Compute the MD5 hex digest for a container of string-literal elements.
+ *
+ * Computes the MD5 message digest by feeding each element of the provided
+ * container into an MD5 accumulator in iteration order and returning the final
+ * digest as a lowercase hexadecimal string.
+ *
+ * Enabled only when the container's element type is a string literal (via
+ * SFINAE). The function treats each element as a string view and updates the
+ * digest with the element's bytes sequentially.
+ *
+ * @param inp Container whose element type is a string literal (e.g., array of
+ *            string literals). Each element is hashed in iteration order.
+ * @return std::string Lowercase hexadecimal MD5 digest of the data fed into
+ *                     the accumulator.
+ */
 std::string
 compute_md5sum(const ContainerT<Tp, TailT...>& inp,
                std::enable_if_t<traits::is_string_literal<Tp>(), int>)
@@ -168,32 +255,82 @@ HH(uint32_t& a, uint32_t b, uint32_t c, uint32_t d, uint32_t x, uint32_t s, uint
 static inline void
 II(uint32_t& a, uint32_t b, uint32_t c, uint32_t d, uint32_t x, uint32_t s, uint32_t ac);
 
-// F, G, H and I are basic md5sum functions.
+/**
+ * @brief MD5 auxiliary function F.
+ *
+ * Computes the MD5 non-linear function F(x, y, z) = (x & y) | (~x & z),
+ * which selects bits from y or z according to mask x.
+ *
+ * @param x Selector mask.
+ * @param y Value selected when mask bit is 1.
+ * @param z Value selected when mask bit is 0.
+ * @return uint32_t Result of the F function.
+ */
 inline uint32_t
 F(uint32_t x, uint32_t y, uint32_t z)
 {
     return (x & y) | (~x & z);
 }
 
+/**
+ * @brief MD5 auxiliary function G.
+ *
+ * Computes the MD5 round-2 nonlinear function G(x, y, z) = (x & z) | (y & ~z).
+ *
+ * @param x First 32-bit word input.
+ * @param y Second 32-bit word input.
+ * @param z Third 32-bit word input.
+ * @return uint32_t Resulting 32-bit word.
+ */
 inline uint32_t
 G(uint32_t x, uint32_t y, uint32_t z)
 {
     return (x & z) | (y & ~z);
 }
 
+/**
+ * @brief MD5 auxiliary function H.
+ *
+ * Computes the MD5 round-3 nonlinear function H(x, y, z) = x XOR y XOR z.
+ *
+ * @param x First 32-bit input word.
+ * @param y Second 32-bit input word.
+ * @param z Third 32-bit input word.
+ * @return uint32_t Result of the bitwise XOR of the three inputs.
+ */
 inline uint32_t
 H(uint32_t x, uint32_t y, uint32_t z)
 {
     return x ^ y ^ z;
 }
 
+/**
+ * @brief MD5 auxiliary function I.
+ *
+ * Computes the MD5 round-4 non-linear function I(x, y, z) = y XOR (x OR NOT z) on 32-bit words.
+ *
+ * @param x First 32-bit word operand.
+ * @param y Second 32-bit word operand.
+ * @param z Third 32-bit word operand.
+ * @return uint32_t Result of the bitwise operation (32-bit).
+ */
 inline uint32_t
 I(uint32_t x, uint32_t y, uint32_t z)
 {
     return y ^ (x | ~z);
 }
 
-// rotate_left rotates x left n bits.
+/**
+ * @brief Rotate a 32-bit unsigned integer left by a specified number of bits.
+ *
+ * Performs a circular left rotation of the 32-bit value `x` by `n` bit positions.
+ *
+ * @param x Value to rotate.
+ * @param n Number of bit positions to rotate left (expected in range [0, 31]).
+ * @return uint32_t Result of rotating `x` left by `n` bits.
+ *
+ * @note Behavior is undefined if `n` is not within 0..31 due to C++ shift semantics.
+ */
 inline uint32_t
 rotate_left(uint32_t x, int n)
 {
@@ -201,32 +338,99 @@ rotate_left(uint32_t x, int n)
 }
 
 // FF, GG, HH, and II transformations for rounds 1, 2, 3, and 4.
-// Rotation is separate from addition to prevent recomputation.
+/**
+ * @brief Perform the MD5 first-round transformation step (FF).
+ *
+ * Updates the accumulator word `a` with the result of the MD5 "FF" operation:
+ * a := rotate_left(a + F(b,c,d) + x + ac, s) + b.
+ *
+ * @param a Reference to the accumulator word that will be updated.
+ * @param b First source word used by the nonlinear function and added back after rotation.
+ * @param c Second source word for the nonlinear function.
+ * @param d Third source word for the nonlinear function.
+ * @param x 32-bit word from the current message block.
+ * @param s Number of bits to rotate left.
+ * @param ac Additive constant for this step.
+ */
 inline void
 FF(uint32_t& a, uint32_t b, uint32_t c, uint32_t d, uint32_t x, uint32_t s, uint32_t ac)
 {
     a = rotate_left(a + F(b, c, d) + x + ac, s) + b;
 }
 
+/**
+ * @brief Performs the MD5 "GG" (round 2) transformation step.
+ *
+ * Applies the second-round MD5 operation to update `a`:
+ * a := a + G(b,c,d) + x + ac; then left-rotate by `s` bits and add `b`.
+ *
+ * @param a[in,out] Accumulator word updated in place with the result.
+ * @param b First working word.
+ * @param c Second working word.
+ * @param d Third working word.
+ * @param x Message word for this operation (32-bit).
+ * @param s Rotation amount (number of bits to rotate left).
+ * @param ac Additive constant for this step.
+ */
 inline void
 GG(uint32_t& a, uint32_t b, uint32_t c, uint32_t d, uint32_t x, uint32_t s, uint32_t ac)
 {
     a = rotate_left(a + G(b, c, d) + x + ac, s) + b;
 }
 
+/**
+ * @brief MD5 round-3 transformation macro implemented as a function.
+ *
+ * Performs the "HH" operation from the MD5 specification: computes
+ * a = ROTATE_LEFT(a + H(b, c, d) + x + ac, s) + b, where H is the
+ * MD5 nonlinear function (b ^ c ^ d) and ROTATE_LEFT is a left bit-rotate.
+ *
+ * @param a In/out accumulator updated with the result.
+ * @param b First input word.
+ * @param c Second input word.
+ * @param d Third input word.
+ * @param x Message word for this operation.
+ * @param s Rotation amount (number of bits to rotate left).
+ * @param ac Additive constant for this step.
+ */
 inline void
 HH(uint32_t& a, uint32_t b, uint32_t c, uint32_t d, uint32_t x, uint32_t s, uint32_t ac)
 {
     a = rotate_left(a + H(b, c, d) + x + ac, s) + b;
 }
 
+/**
+ * @brief MD5 round transformation helper for the fourth round (operation II).
+ *
+ * Applies the MD5-specific non-linear function I, adds the message word and
+ * constant, performs a left rotation by s bits, and accumulates the result
+ * into `a` as specified by the MD5 algorithm.
+ *
+ * @param a (in/out) Accumulated state word updated with the transformation.
+ * @param b State word used as part of the computation and added to the result.
+ * @param c State word input to the non-linear function I.
+ * @param d State word input to the non-linear function I.
+ * @param x 32-bit message word for this operation.
+ * @param s Number of bits to rotate left.
+ * @param ac Additive constant for this step (round constant).
+ */
 inline void
 II(uint32_t& a, uint32_t b, uint32_t c, uint32_t d, uint32_t x, uint32_t s, uint32_t ac)
 {
     a = rotate_left(a + I(b, c, d) + x + ac, s) + b;
 }
 
-// decodes input (unsigned char) into output (uint32_t). Assumes len is a multiple of 4.
+/**
+ * @brief Decode a byte array into 32-bit words (little-endian).
+ *
+ * Converts `len` bytes from `input` into `len/4` 32-bit words written to `output`.
+ * Each group of four input bytes is interpreted in little-endian order:
+ * output[i] = input[j] | input[j+1]<<8 | input[j+2]<<16 | input[j+3]<<24.
+ *
+ * @param output Destination array for decoded 32-bit words. Must have at least `len/4` elements.
+ * @param input  Source byte array of length `len`.
+ * @param len    Number of bytes to decode; must be a multiple of 4.
+ */
 void
 decode(uint32_t output[], const uint8_t input[], size_type len)
 {
@@ -236,7 +440,19 @@ decode(uint32_t output[], const uint8_t input[], size_type len)
 }
 
 // encodes input (uint32_t) into output (unsigned char). Assumes len is
-// a multiple of 4.
+/**
+ * @brief Encode 32-bit words into a byte array in little-endian order.
+ *
+ * Converts `len/4` 32-bit words from `input` into `len` bytes written to
+ * `output`, storing each word as four bytes in little-endian order
+ * (least-significant byte first).
+ *
+ * @param output Destination byte buffer; must be at least `len` bytes.
+ * @param input  Source array of 32-bit words.
+ * @param len    Number of bytes to produce; must be a multiple of 4.
+ *
+ * @note No bounds checks are performed; callers must ensure buffers are large enough.
+ */
 void
 encode(uint8_t output[], const uint32_t input[], size_type len)
 {
@@ -251,7 +467,15 @@ encode(uint8_t output[], const uint32_t input[], size_type len)
 
 }  // namespace
 
-// apply md5sum algo on a block
+/**
+ * @brief Process a single 64-byte MD5 message block and update the internal state.
+ *
+ * Decodes the given 64-byte input block into 32-bit words, performs the four
+ * MD5 transformation rounds, and adds the results into the instance's state
+ * words. Temporary working storage is cleared before returning.
+ *
+ * @param block Pointer to exactly md5sum::blocksize (64) bytes to process.
+ */
 void
 md5sum::transform(const uint8_t block[blocksize])
 {
@@ -339,6 +563,14 @@ md5sum::transform(const uint8_t block[blocksize])
     memset(x, 0, sizeof x);
 }
 
+/**
+ * @brief Update the MD5 context with the bytes from a string view.
+ *
+ * Appends the bytes of @p inp to the running MD5 computation.
+ *
+ * @param inp Input bytes to incorporate into the digest.
+ * @return md5sum& Reference to this object to allow call chaining.
+ */
 md5sum&
 md5sum::update(std::string_view inp)
 {
@@ -346,7 +578,18 @@ md5sum::update(std::string_view inp)
 }
 
 // md5sum block update operation. Continues an md5sum message-digest
-// operation, processing another message block
+/**
+ * @brief Incorporates a sequence of bytes into the ongoing MD5 computation.
+ *
+ * Updates the internal bit counters and buffers, processes any complete 64-byte
+ * blocks (calling the internal transform() for each), and stores any remaining
+ * partial block for later updates or finalization. This does not finalize the
+ * digest; call finalize() when all data has been provided.
+ *
+ * @param input Pointer to the input byte sequence to be hashed.
+ * @param length Number of bytes available at `input`.
+ * @return md5sum& Reference to this object to allow call chaining.
+ */
 md5sum&
 md5sum::update(const unsigned char input[], size_type length)
 {
@@ -381,7 +624,16 @@ md5sum::update(const unsigned char input[], size_type length)
     return *this;
 }
 
-// for convenience provide a verson with signed char
+/**
+ * @brief Update the MD5 state with a signed-char buffer.
+ *
+ * Convenience overload that accepts a signed `char` buffer and forwards its
+ * bytes to the unsigned-byte `update` overload.
+ *
+ * @param input Pointer to the input buffer (may contain binary data).
+ * @param length Number of bytes to read from `input`.
+ * @return md5sum& Reference to this object to allow call chaining.
+ */
 md5sum&
 md5sum::update(const char input[], size_type length)
 {
@@ -389,7 +641,20 @@ md5sum::update(const char input[], size_type length)
 }
 
 // md5sum finalization. Ends an md5sum message-digest operation, writing the
-// the message digest and zeroizing the context.
+/**
+ * @brief Finalize the MD5 computation and produce the digest.
+ *
+ * Converts any buffered input into the final 16-byte MD5 digest by padding
+ * the message, appending the 64-bit message length (in bits), encoding the
+ * internal state into the digest buffer, and clearing sensitive internal
+ * state. Calling finalize() more than once has no additional effect.
+ *
+ * After successful finalization:
+ * - rawdigest() returns the 16-byte binary digest.
+ * - hexdigest() and hexliteral() return string representations of the digest.
+ *
+ * @return md5sum& Reference to this instance (finalized).
+ */
 md5sum&
 md5sum::finalize()
 {
@@ -426,7 +691,16 @@ md5sum::finalize()
     return *this;
 }
 
-// return hex representation of digest as string
+/**
+ * @brief Returns the finalized MD5 digest as a lowercase hexadecimal string.
+ *
+ * If the md5sum has not been finalized (finalize() not called), returns an
+ * empty string. When finalized, returns a 32-character lowercase hex string
+ * representing the 16-byte MD5 digest.
+ *
+ * @return std::string 32-char lowercase hex representation of the digest, or
+ * an empty string if not finalized.
+ */
 std::string
 md5sum::hexdigest() const
 {
@@ -440,6 +714,17 @@ md5sum::hexdigest() const
     return std::string(buf);
 }
 
+/**
+ * @brief Return the finalized digest as a SQL-style hex literal.
+ *
+ * If the digest has been finalized, returns a string of the form `X'...'`
+ * where each byte of the 16-byte MD5 digest is emitted as two lowercase
+ * hexadecimal characters. If the md5sum is not finalized, returns an empty
+ * string.
+ *
+ * @return std::string Hex-literal representation of the finalized digest, or
+ * an empty string if not finalized.
+ */
 std::string
 md5sum::hexliteral() const
 {
@@ -453,12 +738,34 @@ md5sum::hexliteral() const
     return _oss.str();
 }
 
+/**
+ * @brief Inserts the MD5 hex digest into an output stream.
+ *
+ * Writes the object's hex digest (as returned by md5sum::hexdigest()) to the provided
+ * output stream and returns the stream reference for chaining.
+ *
+ * If the md5sum object has not been finalized, its hexdigest() is an empty string,
+ * so nothing will be written.
+ *
+ * @param out Stream to write the hex digest into.
+ * @param md5 The md5sum whose hex digest will be written (taken by value).
+ * @return std::ostream& Reference to the same output stream.
+ */
 std::ostream&
 operator<<(std::ostream& out, md5sum md5)
 {
     return out << md5.hexdigest();
 }
 
+/**
+ * @brief Compute the MD5 hex digest of a string view.
+ *
+ * Computes the MD5 hash of the provided input and returns the finalized
+ * digest as a lowercase hexadecimal string.
+ *
+ * @param inp Input data to hash.
+ * @return std::string Lowercase hexadecimal representation of the MD5 digest (32 hex characters).
+ */
 std::string
 compute_md5sum(std::string_view inp)
 {

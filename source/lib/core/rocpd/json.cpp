@@ -26,18 +26,51 @@
 namespace rocpd
 {
 
+/**
+ * @brief Create a new json instance wrapped in a shared_ptr.
+ *
+ * Returns a std::shared_ptr managing a newly allocated empty json object.
+ *
+ * @return std::shared_ptr<json> Shared pointer owning the new json instance.
+ */
 std::shared_ptr<json>
 json::create()
 {
     return std::shared_ptr<json>(new json());
 }
 
+/**
+ * @brief Insert or update a value by key in the JSON object.
+ *
+ * Stores a copy of the provided value in the object's internal map under
+ * the given key. If an entry with the same key already exists, it is
+ * replaced. The value is stored as a std::shared_ptr to a copy of the
+ * provided json_value (shared ownership semantics).
+ *
+ * @param key Key under which to store the value.
+ * @param value Value to store (copied and wrapped in a shared_ptr).
+ */
 void
 json::set(const std::string& key, const json_value& value)
 {
     data[key] = std::make_shared<json_value>(value);
 }
 
+/**
+ * @brief Serialize the stored key-value pairs to a JSON-formatted string.
+ *
+ * Produces a JSON-like representation of this object's internal map in the
+ * form `{"key1": value1, "key2": value2, ...}` by iterating over all entries
+ * in `data` and serializing each value via `stringify()`. Keys are emitted
+ * quoted; values are formatted according to their variant type (strings,
+ * numbers, booleans, null, arrays, nested objects, etc.).
+ *
+ * Note: The output order of fields matches the iteration order of the
+ * underlying `data` container. This method does not perform additional
+ * escaping beyond what `stringify()` provides and does not throw on its own.
+ *
+ * @return std::string JSON-formatted representation of the object.
+ */
 std::string
 json::to_string() const
 {
@@ -57,6 +90,20 @@ json::to_string() const
     return oss.str();
 }
 
+/**
+ * @brief Serialize a json_value variant to a JSON-formatted string.
+ *
+ * Converts the held variant to its JSON textual representation. Supported types:
+ * - std::string: emitted with surrounding double quotes.
+ * - bool: emitted as "true" or "false".
+ * - std::nullptr_t: emitted as "null".
+ * - std::vector<json>: emitted as a JSON array; each element is serialized via json::to_string().
+ * - std::shared_ptr<json>: emitted as the nested object's to_string() result.
+ * - Other scalar types (e.g., int, double): emitted via operator<<.
+ *
+ * @param value Shared pointer to the value to serialize. Must be non-null.
+ * @return std::string JSON representation of the provided value.
+ */
 std::string
 json::stringify(const std::shared_ptr<json_value>& value)
 {

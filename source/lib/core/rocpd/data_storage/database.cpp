@@ -34,6 +34,14 @@
 
 namespace
 {
+/**
+ * @brief Ensure the directory for a database file exists.
+ *
+ * Given a filesystem path to a database file, this function determines the
+ * containing directory and creates it if it does not already exist.
+ *
+ * @param db_file Path to the database file whose directory should be created.
+ */
 void
 create_directory_for_database_file(const std::string& db_file)
 {
@@ -50,6 +58,14 @@ namespace rocpd
 {
 namespace data_storage
 {
+/**
+ * @brief Returns the singleton instance of the database manager.
+ *
+ * Provides access to the single shared database object used by rocpd data storage.
+ * The instance is created on first use and returned by reference.
+ *
+ * @return database& Reference to the singleton database instance.
+ */
 database&
 database::get_instance()
 {
@@ -57,6 +73,21 @@ database::get_instance()
     return _instance;
 }
 
+/**
+ * @brief Construct and initialize the database singleton.
+ *
+ * Ensures the directory for the persistent database file ("rocpd.db") exists,
+ * opens an in-memory temporary SQLite database (_sqlite3_db_temp) and the
+ * persistent SQLite database at the resolved absolute path (_sqlite3_db),
+ * and logs the chosen database path.
+ *
+ * The constructor performs filesystem preparation (creating the directory for
+ * the DB file if needed) and opens both SQLite connections. If opening either
+ * database fails, an error is propagated via validate_sqlite3_result.
+ *
+ * @throws std::runtime_error if opening the in-memory or persistent SQLite
+ *         database fails.
+ */
 database::database()
 {
     auto db_name     = std::string_view{ "rocpd.db" };
@@ -70,12 +101,43 @@ database::database()
                             "database open failed!");
 }
 
+/**
+ * @brief Destructor that closes SQLite database connections.
+ *
+ * Closes the in-memory temporary database and the persistent database connections
+ * held by this instance. After this returns, both _sqlite3_db_temp and
+ * _sqlite3_db are no longer valid.
+ */
 database::~database()
 {
     sqlite3_close(_sqlite3_db_temp);
     sqlite3_close(_sqlite3_db);
 }
 
+/**
+ * @brief Load and apply SQL schema files into the in-memory database.
+ *
+ * This initializes the temporary (in-memory) SQLite database by locating,
+ * preprocessing, and executing a set of schema SQL files:
+ *  - rocpd_tables.sql
+ *  - rocpd_views.sql
+ *  - data_views.sql
+ *  - marker_views.sql
+ *  - summary_views.sql
+ *
+ * For each file the function:
+ *  - Resolves the file path by first checking the environment variables
+ *    `rocprofiler_systems_ROOT` or `ROCPROFSYS_ROOT` and, if present and valid,
+ *    using a path under `${ROOT}/share/rocprofiler-systems/`. If no valid root
+ *    is found, a built-in repository-relative path is used.
+ *  - Reads the file contents and performs two placeholder substitutions:
+ *    - `{{uuid}}` → `_<upid>` where `<upid>` is returned by get_upid().
+ *    - `{{view_upid}}` → `` (empty string).
+ *  - Executes the resulting SQL against the in-memory SQLite database handle
+ *    (_sqlite3_db_temp).
+ *
+ * @throws std::runtime_error If any schema file cannot be opened.
+ */
 void
 database::initialize_schema()
 {
@@ -130,6 +192,14 @@ database::initialize_schema()
     }
 }
 
+/**
+ * @brief Execute an SQL statement on the in-memory temporary database.
+ *
+ * Executes the provided SQL query against the internal in-memory SQLite database.
+ * On failure the underlying SQLite error is reported via validate_sqlite3_result.
+ *
+ * @param query SQL statement to execute; may modify the temporary database.
+ */
 void
 database::execute_query(const std::string& query)
 {
@@ -137,6 +207,16 @@ database::execute_query(const std::string& query)
                             "Failed to execute query - ", query);
 }
 
+/**
+ * @brief Returns a stable unique process identifier (UPID).
+ *
+ * Computes an MD5-based identifier from the node identifier, current PID, and parent PID,
+ * caches it on first call, and returns the cached hexadecimal string on subsequent calls.
+ *
+ * The value is stable for the lifetime of the process (cached in a static variable).
+ *
+ * @return std::string Hexadecimal UPID.
+ */
 std::string
 database::get_upid()
 {
@@ -148,12 +228,32 @@ database::get_upid()
     return _upid;
 }
 
+/**
+ * @brief Returns the last rowid inserted into the in-memory temporary database.
+ *
+ * This returns the value of SQLite's last insert rowid for the temporary
+ * in-memory connection used by this class. The value corresponds to the
+ * most recent successful INSERT on the temporary database connection and is
+ * 0 if no row has been inserted.
+ *
+ * @return size_t Last inserted row ID from the in-memory database.
+ */
 size_t
 database::get_last_insert_id() const
 {
     return sqlite3_last_insert_rowid(_sqlite3_db_temp);
 }
 
+/**
+ * @brief Persist the in-memory temporary database to the on-disk database.
+ *
+ * Performs a full copy of the temporary in-memory SQLite database into the
+ * persistent database using SQLite's backup API. If the backup cannot be
+ * initialized (e.g., the backup handle is null), the function returns without
+ * modifying the persistent database.
+ *
+ * @note This function has side effects on the persistent database file.
+ */
 void
 database::flush()
 {

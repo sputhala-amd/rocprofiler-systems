@@ -11,6 +11,21 @@ namespace rocprofsys
 {
 namespace cpu
 {
+/**
+ * @brief Read and parse /proc/cpuinfo into a vector of cpu_info records.
+ *
+ * Reads /proc/cpuinfo and extracts common CPU fields (processor, cpu family,
+ * model, physical id, core id, apicid, vendor_id, model name). Keys are
+ * trimmed and lowercased before parsing. Numeric fields are converted with
+ * robust parsing; conversion failures yield -1 in the corresponding field.
+ *
+ * The function returns an empty vector if /proc/cpuinfo cannot be opened.
+ * Note: parsing stops after completing the first processor entry encountered
+ * (the function pushes that cpu_info and returns immediately), so the returned
+ * vector will contain at most one entry in the current implementation.
+ *
+ * @return std::vector<cpu_info> Parsed CPU information (possibly empty).
+ */
 std::vector<cpu_info>
 process_cpu_info_data()
 {
@@ -118,6 +133,20 @@ process_cpu_info_data()
     return cpu_data;
 }
 
+/**
+ * @brief Returns parsed CPU information, cached for the process lifetime.
+ *
+ * The CPU info vector is populated once by calling process_cpu_info_data() on
+ * the first invocation and the same cached vector is returned on subsequent
+ * calls. If parsing fails (for example /proc/cpuinfo cannot be opened) an
+ * empty vector is returned.
+ *
+ * Note: the cache is initialized on first use and is not refreshed; callers
+ * should not expect updates if system CPU information changes after the first
+ * call.
+ *
+ * @return std::vector<cpu_info> Vector of detected CPU entries (may be empty).
+ */
 std::vector<cpu_info>
 get_cpu_info()
 {
@@ -125,6 +154,13 @@ get_cpu_info()
     return _v;
 }
 
+/**
+ * @brief Returns the number of CPU devices detected.
+ *
+ * Queries the cached CPU information and returns the count of discovered CPU entries.
+ *
+ * @return size_t Number of CPUs (entries) detected in the cached CPU info.
+ */
 size_t
 device_count()
 {
@@ -132,6 +168,14 @@ device_count()
     return cpu_data.size();
 }
 
+/**
+ * @brief Register CPU agents with the global agent manager.
+ *
+ * Queries CPU information via get_cpu_info() and constructs an agent for each
+ * discovered CPU entry. Agents receive sequential node, logical, and id values
+ * and are inserted into the agent_manager singleton. If no CPUs are detected
+ * (device_count() == 0) the function returns without side effects.
+ */
 void
 query_cpu_agents()
 {

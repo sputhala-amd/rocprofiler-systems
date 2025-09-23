@@ -53,32 +53,115 @@ struct benchmark_impl
     template <category_enum... categories>
     struct scope
     {
-        scope(const scope&)            = delete;
-        scope& operator=(const scope&) = delete;
-        ~scope()                       = default;
+        /**
+ * @brief Deleted copy constructor to make the scope non-copyable.
+ *
+ * The scope owns a scoped benchmark interval whose end is invoked in the
+ * destructor; copying would lead to double-end semantics or missed measurements,
+ * so copying is explicitly disabled.
+ */
+scope(const scope&)            = delete;
+        /**
+ * @brief Deleted copy assignment operator to prevent copying of `scope` instances.
+ *
+ * The `scope` type is non-copyable (move-only); disabling copy-assignment avoids
+ * duplicating a scope's lifetime semantics and ensures a single RAII owner.
+ */
+scope& operator=(const scope&) = delete;
+        /**
+ * @brief Destroys the scoped benchmark object.
+ *
+ * The destructor stops the benchmark scope by invoking end for the scope's
+ * compile-time categories (releasing the timing region recorded by the
+ * corresponding start). This ensures any started timers for the scope's
+ * categories are closed when the object goes out of scope.
+ */
+~scope()                       = default;
 
     protected:
-        scope()                   = default;
-        scope(scope&&)            = default;
-        scope& operator=(scope&&) = default;
+        /**
+ * @brief Default constructs a scoped benchmark object.
+ *
+ * The constructor begins timing for the scope's compile-time categories; the
+ * corresponding timing is ended when the scoped object is destroyed.
+ */
+scope()                   = default;
+        /**
+ * @brief Move-constructs a scope.
+ *
+ * Transfers ownership of the scoped benchmark to the target object.
+ * The moved-from object is left in a valid but unspecified state.
+ */
+scope(scope&&)            = default;
+        /**
+ * @brief Move-assigns a scope from another instance.
+ *
+ * Defaulted move assignment operator that transfers ownership/state from the
+ * source scope into this one. The source is left in a valid but unspecified state.
+ */
+scope& operator=(scope&&) = default;
     };
 
     template <category_enum... categories>
+    /**
+     * @brief No-op placeholder for benchmarking start when benchmarks are disabled.
+     *
+     * This function intentionally does nothing. It exists so call sites can invoke
+     * a uniform `start()` API regardless of whether benchmarking is enabled at
+     * compile time. Has no side effects.
+     */
     static void start()
     {}
 
     template <category_enum... categories>
+    /**
+     * @brief No-op end point for a benchmark category.
+     *
+     * When benchmarking is compiled out or disabled, this function provides a
+     * compatible API but performs no actions.
+     */
     static void end()
     {}
 
     template <category_enum... categories>
+    /**
+     * @brief Create an RAII benchmarking scope for the specified categories.
+     *
+     * Returns a scope instance that begins timing for the given compile-time
+     * categories on construction and ends timing on destruction. Use the returned
+     * object to measure a lexical scope; the `[[nodiscard]]` attribute indicates
+     * the value must be used (otherwise the scope would be destroyed immediately).
+     *
+     * @return scope<categories...> RAII scope that records start/end for the categories.
+     */
     [[nodiscard]] static scope<categories...> scoped_trace()
     {
         return scope<categories...>{};
     }
 
-    static void init_from_env(const char* = nullptr) {}
-    static void show_results() {}
+    /**
+ * @brief No-op placeholder that would initialize enabled benchmark categories from an environment variable.
+ *
+ * When benchmarking is compiled out/disabled, this implementation does nothing.
+ *
+ * @param envVar Optional name of the environment variable to read (if non-null). When benchmarking is enabled,
+ *               the implementation interprets this string as the environment variable that lists comma-separated
+ *               categories to enable. Here it is accepted but ignored.
+ */
+static void init_from_env(const char* = nullptr) {}
+    /**
+ * @brief Print collected benchmark results for enabled categories.
+ *
+ * When benchmarking is enabled, prints a sorted, human-readable table of
+ * per-category statistics (calls, total time, average, min, max). Only
+ * categories with at least one recorded call are shown. Results are derived
+ * from the accumulated per-thread timing data and are formatted for console
+ * output.
+ *
+ * This function is safe to call from user code after benchmarks have run;
+ * it acquires internal synchronization to read the collected results.
+ */
+static void show_results() {}
 };
 
 using tid_t = __pid_t;
@@ -87,7 +170,16 @@ struct indexed_category
     size_t category;
     tid_t  thread_id;
 
-    friend bool operator==(const indexed_category& lhs, const indexed_category& rhs)
+    friend /**
+     * @brief Compare two indexed_category values for equality.
+     *
+     * Returns true if both the category and the associated thread id are equal.
+     *
+     * @param lhs Left-hand indexed_category to compare.
+     * @param rhs Right-hand indexed_category to compare.
+     * @return true if both category and thread_id match; otherwise false.
+     */
+    bool operator==(const indexed_category& lhs, const indexed_category& rhs)
     {
         return lhs.category == rhs.category && lhs.thread_id == rhs.thread_id;
     }
@@ -95,6 +187,15 @@ struct indexed_category
 
 struct indexed_category_hash
 {
+    /**
+     * @brief Computes a hash for an indexed_category (category + thread id).
+     *
+     * Combines the hash of the category index and the thread id using XOR and a left shift
+     * to produce a single size_t hash value suitable for use in unordered containers.
+     *
+     * @param p The indexed_category to hash.
+     * @return std::size_t Combined hash of p.category and p.thread_id.
+     */
     size_t operator()(const indexed_category& p) const noexcept
     {
         std::size_t hash1 = std::hash<size_t>{}(p.category);
@@ -119,18 +220,65 @@ public:
         friend benchmark_impl;
 
     public:
-        scope(const scope&)            = delete;
-        scope& operator=(const scope&) = delete;
-        ~scope() { end<categories...>(); }
+        /**
+ * @brief Deleted copy constructor to make the scope non-copyable.
+ *
+ * The scope owns a scoped benchmark interval whose end is invoked in the
+ * destructor; copying would lead to double-end semantics or missed measurements,
+ * so copying is explicitly disabled.
+ */
+scope(const scope&)            = delete;
+        /**
+ * @brief Deleted copy assignment operator to prevent copying of `scope` instances.
+ *
+ * The `scope` type is non-copyable (move-only); disabling copy-assignment avoids
+ * duplicating a scope's lifetime semantics and ensures a single RAII owner.
+ */
+scope& operator=(const scope&) = delete;
+        /**
+ * @brief RAII destructor that ends timing for the scope's categories.
+ *
+ * Calls end<categories...>() so the benchmark records end timestamps and updates
+ * aggregated results for each category when the scope object is destroyed.
+ */
+~scope() { end<categories...>(); }
 
     protected:
-        scope() { start<categories...>(); }
+        /**
+ * @brief Creates an RAII scope that starts timing for the specified categories.
+ *
+ * Records start timestamps for each category in the template parameter pack.
+ * The scope's destructor invokes end<categories...>() to record elapsed
+ * durations, so this constructor should be paired with the destructor to
+ * produce a complete measurement.
+ */
+scope() { start<categories...>(); }
 
-        scope(scope&&)            = default;
-        scope& operator=(scope&&) = default;
+        /**
+ * @brief Move-constructs a scope.
+ *
+ * Transfers ownership of the scoped benchmark to the target object.
+ * The moved-from object is left in a valid but unspecified state.
+ */
+scope(scope&&)            = default;
+        /**
+ * @brief Move-assigns a scope from another instance.
+ *
+ * Defaulted move assignment operator that transfers ownership/state from the
+ * source scope into this one. The source is left in a valid but unspecified state.
+ */
+scope& operator=(scope&&) = default;
     };
 
     template <category_enum... categories>
+    /**
+     * @brief Record the start timestamp for each specified benchmark category for the current thread.
+     *
+     * For every category in the template parameter pack, if that category is enabled in m_enabled,
+     * captures the current high-resolution time and stores it in m_started keyed by (category index, thread id).
+     * Access to shared state is synchronized via m_mutex. If an entry already exists for the same
+     * (category, thread) it is overwritten.
+     */
     static void start()
     {
         static const thread_local auto _thread_id = gettid();
@@ -143,6 +291,24 @@ public:
     }
 
     template <category_enum... categories>
+    /**
+     * @brief Record end timestamps for the given benchmark categories and update their accumulated results.
+     *
+     * For each compile-time category in the template parameter pack, if that category is currently enabled
+     * this function looks up the per-thread start time, computes the elapsed microseconds since start,
+     * and updates the aggregated result (count, total, min, max). If no matching start time is found for
+     * a category/thread pair, a warning is emitted and that category is skipped.
+     *
+     * Side effects:
+     * - Reads a thread-local thread id.
+     * - Locks internal mutex to access and modify shared start-time and result storage.
+     * - May modify per-category aggregated statistics.
+     *
+     * Behavior notes:
+     * - Categories that are not enabled are ignored.
+     * - This function is intended to be called as the counterpart to the corresponding `start<...>()`
+     *   call (or implicitly via `scope<...>` destruction).
+     */
     static void end()
     {
         static const thread_local auto _thread_id = getpid();
@@ -155,11 +321,36 @@ public:
     }
 
     template <category_enum... categories>
+    /**
+     * @brief Create an RAII benchmarking scope for the specified categories.
+     *
+     * Returns a scope instance that begins timing for the given compile-time
+     * categories on construction and ends timing on destruction. Use the returned
+     * object to measure a lexical scope; the `[[nodiscard]]` attribute indicates
+     * the value must be used (otherwise the scope would be destroyed immediately).
+     *
+     * @return scope<categories...> RAII scope that records start/end for the categories.
+     */
     [[nodiscard]] static scope<categories...> scoped_trace()
     {
         return scope<categories...>{};
     }
 
+    /**
+     * @brief Initialize enabled benchmark categories from an environment variable.
+     *
+     * Reads a comma-separated list of category names from the given environment variable
+     * (default: "ROCPROFSYS_BENCHMARK_CATEGORIES"), trims whitespace around each token,
+     * and enables any matching compiled categories by setting their bits in the internal
+     * enabled bitset.
+     *
+     * This function acquires the internal mutex for the duration of the operation and
+     * updates the static m_enabled bitset as a side effect. If the environment variable
+     * is absent or empty, a warning is emitted and no categories are enabled.
+     *
+     * @param envVar Name of the environment variable to read (defaults to
+     *               "ROCPROFSYS_BENCHMARK_CATEGORIES").
+     */
     static void init_from_env(const char* envVar = "ROCPROFSYS_BENCHMARK_CATEGORIES")
     {
         std::lock_guard lock(m_mutex);
@@ -188,6 +379,20 @@ public:
         }
     }
 
+    /**
+     * @brief Print collected benchmark results to stdout in a human-readable table.
+     *
+     * Collects recorded per-category results that have at least one measurement, sorts
+     * them by total accumulated time (descending), and writes a formatted table to
+     * standard output. Total time is shown in milliseconds, average/min/max are in
+     * microseconds. The function takes the internal mutex while reading and formatting
+     * data, so it is safe to call concurrently with other benchmarking operations.
+     *
+     * The output includes colored separators and the following columns:
+     * Category | Calls | Total(ms) | Avg(us) | Min(us) | Max(us)
+     *
+     * This function does not return a value and does not throw exceptions.
+     */
     static void show_results()
     {
         std::lock_guard                                    lock(m_mutex);
@@ -251,6 +456,14 @@ private:
         uint64_t min_time   = std::numeric_limits<uint64_t>::max();
         uint64_t max_time   = std::numeric_limits<uint64_t>::min();
 
+        /**
+         * @brief Incorporates a measured duration into the aggregate statistics.
+         *
+         * Updates the accumulated total_time and call count, and adjusts min_time and
+         * max_time to include the provided measurement.
+         *
+         * @param duration Measured duration in microseconds to add to the statistics.
+         */
         void update(uint64_t duration)
         {
             total_time += duration;
@@ -260,11 +473,34 @@ private:
         }
     };
 
+    /**
+     * @brief Convert a category enum value to its zero-based index.
+     *
+     * Converts the provided category enum to a size_t index via a constexpr cast.
+     * The enum's enumerators are expected to correspond to contiguous integer
+     * indices suitable for indexing arrays of per-category data.
+     *
+     * @param cat Category enum value to convert.
+     * @return size_t Zero-based index corresponding to `cat`.
+     */
     static constexpr size_t to_index(category_enum cat)
     {
         return static_cast<size_t>(cat);
     }
 
+    /**
+     * @brief Finalize timing for a single category on a thread and record the elapsed time.
+     *
+     * Looks up the matching start time for (category, thread_id), computes the elapsed
+     * duration in microseconds from that start to end_time, updates the aggregated
+     * results for the category, and removes the start entry.
+     *
+     * If no matching start time is found, logs a warning and does nothing.
+     *
+     * @param end_time Clock time point representing the end timestamp.
+     * @param cat Category whose timing is being ended.
+     * @param thread_id Thread identifier used to locate the corresponding start time.
+     */
     static void end_category(const time_point& end_time, category_enum cat,
                              const tid_t thread_id)
     {
@@ -284,6 +520,18 @@ private:
     }
 
     template <category_enum Cat, typename Func>
+    /**
+     * @brief Invoke a callback only when a compile-time category is enabled.
+     *
+     * Conditionally calls the provided callable `f` if and only if the compile-time
+     * category `Cat` is present in the list of enabled_categories for this
+     * specialization. The check is performed with `if constexpr`, so when the
+     * category is not enabled `f` is not instantiated or evaluated.
+     *
+     * @tparam Cat The category to test (compile-time enum value).
+     * @tparam Func Callable type; must be invocable with no arguments when `Cat` is enabled.
+     * @param f Callable that will be invoked only when `Cat` is among enabled_categories.
+     */
     static constexpr void is_category_defined(Func&& f)
     {
         if constexpr(((Cat == enabled_categories) || ...))
@@ -317,6 +565,13 @@ using _benchmark_impl = benchmark::benchmark_impl<false, benchmark::category>;
 }  // namespace
 
 template <category... categories>
+/**
+ * @brief Start timing for the specified benchmark categories.
+ *
+ * Delegates to the internal benchmark implementation to record start timestamps
+ * for the categories in the surrounding template parameter pack. When the
+ * benchmarking facility is disabled this function is a no-op.
+ */
 void
 start()
 {
@@ -324,6 +579,16 @@ start()
 }
 
 template <category... categories>
+/**
+ * @brief Stop timing for the compile-time category pack.
+ *
+ * Ends the benchmark measurement for each category in the template parameter pack and records the elapsed
+ * duration (per-thread) into the accumulated results. This is a thin wrapper that forwards to the
+ * underlying benchmark implementation.
+ *
+ * If a matching start was not recorded for a category/thread, a warning will be issued and that category
+ * is not updated.
+ */
 void
 end()
 {
@@ -331,18 +596,46 @@ end()
 }
 
 template <category... categories>
+/**
+ * @brief Create an RAII benchmark scope for the specified categories.
+ *
+ * Returns an object that records start timestamps for the given benchmark
+ * categories on construction and records corresponding end timestamps when
+ * the object is destroyed. The return value is marked [[nodiscard]] — keep
+ * the scope object alive for the duration you want measured.
+ *
+ * @return scope object that pairs start/end for the specified categories.
+ */
 [[nodiscard]] auto
 scoped_trace()
 {
     return _benchmark_impl::template scoped_trace<categories...>();
 }
 
+/**
+ * @brief Initialize enabled benchmark categories from an environment variable.
+ *
+ * Reads a comma-separated list of category names from the environment variable named by `envVar`
+ * (defaults to "BENCHMARK_CATEGORIES") and enables matching benchmark categories for result
+ * collection. Matching is performed against the compiled category names; unknown or empty values
+ * are ignored and will produce a runtime warning.
+ *
+ * @param envVar Name of the environment variable to read (null-terminated C string).
+ */
 inline void
 init_from_env(const char* envVar = "BENCHMARK_CATEGORIES")
 {
     _benchmark_impl::init_from_env(envVar);
 }
 
+/**
+ * @brief Print collected benchmark results.
+ *
+ * Prints a formatted table of benchmark results for enabled categories (calls, total
+ * time, average, min, max). Results are produced from previously paired start/end
+ * calls or scoped traces; categories with zero calls are omitted. The output is
+ * generated on the process' standard output.
+ */
 inline void
 show_results()
 {

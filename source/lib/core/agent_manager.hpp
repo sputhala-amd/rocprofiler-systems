@@ -34,11 +34,38 @@ struct agent_manager
 {
     static agent_manager& get_instance();
 
-    agent_manager(const agent_manager&)            = delete;
-    agent_manager& operator=(const agent_manager&) = delete;
-    agent_manager(agent_manager&&)                 = delete;
-    agent_manager& operator=(agent_manager&&)      = delete;
-    ~agent_manager()                               = default;
+    /**
+ * @brief Deleted copy constructor to make agent_manager non-copyable.
+ *
+ * Ensures there can be no copied instances of agent_manager; access the single instance via get_instance().
+ */
+agent_manager(const agent_manager&)            = delete;
+    /**
+ * @brief Deleted copy assignment operator to prevent copying of the singleton-like manager.
+ *
+ * The agent_manager is non-copyable; assignments are explicitly disabled to preserve
+ * unique ownership and internal state consistency.
+ */
+agent_manager& operator=(const agent_manager&) = delete;
+    /**
+ * @brief Deleted move constructor to prohibit moving the singleton-like manager.
+ *
+ * The agent_manager is non-movable to ensure a single, stable instance returned by
+ * get_instance(). Attempting to move an agent_manager is ill-formed.
+ */
+agent_manager(agent_manager&&)                 = delete;
+    /**
+ * @brief Deleted move-assignment operator.
+ *
+ * Prevents move-assignment of agent_manager to enforce a single, non-movable instance.
+ */
+agent_manager& operator=(agent_manager&&)      = delete;
+    /**
+ * @brief Default destructor.
+ *
+ * Destroys the agent_manager and releases ownership of all managed agents.
+ */
+~agent_manager()                               = default;
 
     void         insert_agent(agent& agent);
     const agent& get_agent_by_id(size_t device_id, agent_type type) const;
@@ -56,7 +83,13 @@ private:
     std::vector<std::shared_ptr<agent>> _agents;
     size_t                              _gpu_agents_cnt{ 0 };
     size_t                              _cpu_agents_cnt{ 0 };
-    agent_manager() = default;
+    /**
+ * @brief Default constructs an agent_manager.
+ *
+ * Exists as a private, defaulted constructor to prevent public instantiation;
+ * use agent_manager::get_instance() to access the singleton-like manager.
+ */
+agent_manager() = default;
 };
 
 }  // namespace rocprofsys

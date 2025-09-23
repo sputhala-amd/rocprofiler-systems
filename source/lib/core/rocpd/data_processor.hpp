@@ -84,6 +84,16 @@ private:
 
     struct pmc_identifier_hash
     {
+        /**
+         * @brief Compute a hash value for a pmc_identifier.
+         *
+         * Combines the hash of the identifier's agent_id and the hash of its name
+         * into a single std::size_t value. The combination uses a left-shift of the
+         * name-hash and XOR with the agent-id hash to produce a mixed result.
+         *
+         * @param pmc The pmc_identifier to hash (agent_id and name).
+         * @return std::size_t Hash value representing the combined fields.
+         */
         std::size_t operator()(const pmc_identifier& pmc) const noexcept
         {
             std::size_t h1 = std::hash<size_t>{}(pmc.agent_id);
@@ -94,6 +104,16 @@ private:
 
     struct pmc_identifier_equal
     {
+        /**
+         * @brief Equality predicate for pmc_identifier keys.
+         *
+         * Compares two pmc_identifier instances for equality: true when both the
+         * agent_id and the name are equal.
+         *
+         * @param lhs Left-hand pmc_identifier to compare.
+         * @param rhs Right-hand pmc_identifier to compare.
+         * @return true if both `agent_id` and `name` are equal; otherwise false.
+         */
         bool operator()(const pmc_identifier& lhs,
                         const pmc_identifier& rhs) const noexcept
         {
@@ -203,8 +223,19 @@ public:
 
 private:
     data_processor();
-    data_processor(data_processor&)                  = delete;
-    data_processor& operator=(const data_processor&) = delete;
+    /**
+ * @brief Deleted copy constructor.
+ *
+ * Disables copying of data_processor to enforce singleton semantics and prevent duplicate instances.
+ */
+data_processor(data_processor&)                  = delete;
+    /**
+ * @brief Deleted copy-assignment operator to prevent assigning between instances.
+ *
+ * Enforces singleton/non-copyable semantics for data_processor by disabling
+ * copy assignment.
+ */
+data_processor& operator=(const data_processor&) = delete;
 
     void initialize_pmc_event_stmt();
     void initialize_event_stmt();

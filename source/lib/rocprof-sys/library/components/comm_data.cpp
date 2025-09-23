@@ -38,6 +38,24 @@ namespace component
 namespace
 {
 template <typename Tp, typename... Args>
+/**
+ * @brief Emit a Perfetto counter sample for the given Track type, accumulating values.
+ *
+ * If Perfetto tracing is enabled and the system state is Active, this function lazily
+ * creates a counter track for the Track type `Tp` (labelled by `Tp::label`) and emits
+ * a TRACE_COUNTER sample with a thread-safe running accumulation of the provided value.
+ *
+ * The counter track is created once (per process) with unit "bytes". The accumulated
+ * value is updated under a mutex and the sample timestamp is taken via
+ * rocprofsys::tracing::now<uint64_t>(). The emitted counter uses `Tp::value` as the
+ * counter identifier.
+ *
+ * Requirements:
+ * - `Tp` must provide a static `label` (string-like) and a static `value` (identifier).
+ *
+ * @param _val Amount to add to the running counter (interpreted in bytes); the emitted
+ *             sample reports the post-addition accumulated value.
+ */
 void
 write_perfetto_counter_track(uint64_t _val)
 {
@@ -76,12 +94,29 @@ write_perfetto_counter_track(uint64_t _val)
 
 namespace
 {
+/**
+ * @brief Returns the singleton rocpd::data_processor instance.
+ *
+ * Provides access to the global data processor used for rocpd-based
+ * communication metric registration and event processing.
+ *
+ * @return rocpd::data_processor& Reference to the process-global singleton instance.
+ */
 rocpd::data_processor&
 get_data_processor()
 {
     return rocpd::data_processor::get_instance();
 }
 
+/**
+ * @brief Register communication-related categories with the rocpd data processor.
+ *
+ * Ensures the comm_data category is inserted into the global rocpd::data_processor exactly once.
+ * Conditionally registers the MPI and ROCm/RCCL categories when the corresponding build
+ * flags (ROCPROFSYS_USE_MPI, ROCPROFSYS_USE_RCCL) are defined.
+ *
+ * This function is idempotent: subsequent calls are no-ops after the first successful initialization.
+ */
 void
 rocpd_initialize_comm_data_categories()
 {
@@ -102,6 +137,17 @@ rocpd_initialize_comm_data_categories()
 }
 
 template <typename Track>
+/**
+ * @brief Initialize a perf tracking track for the specified Track type (once).
+ *
+ * Inserts a track into the rocpd data processor using Track::label, the current
+ * node id from node_info, and the current process id. Initialization is
+ * performed exactly once (thread-safe).
+ *
+ * @tparam Track Track type that must expose a static `label` member (const char*).
+ *
+ * Side effects: registers a track in the global data_processor.
+ */
 void
 rocpd_initialize_track()
 {
@@ -117,6 +163,26 @@ rocpd_initialize_track()
     std::call_once(_once, _init_track, Track::label);
 }
 
+/**
+ * @brief Register PMC (performance monitoring counter) descriptions for communication data.
+ *
+ * @details
+ * Initializes and inserts PMC metadata entries into the internal rocpd data processor for
+ * communication-related metrics (bytes sent/received). The function determines node and
+ * agent context (node id, process id, agent base id) and registers PMC descriptions for
+ * MPI and/or RCCL communication tracks when those integrations are enabled at compile time.
+ *
+ * The registered descriptions include labels, human-readable descriptions, category
+ * descriptions, units ("bytes"/"ABS"), and other metadata consumed by the rocpd
+ * data_processor for later event/sample insertion.
+ *
+ * This function has no parameters and no return value. It relies on node_info and
+ * agent_manager singletons and is guarded by compile-time flags:
+ * - When ROCPROFSYS_USE_MPI is defined, inserts entries for comm_data::mpi_send and comm_data::mpi_recv.
+ * - When ROCPROFSYS_USE_RCCL is defined, inserts entries for rccl_send and rccl_recv.
+ *
+ * @note The implementation assumes a CPU agent with device id 0 when resolving the agent base id.
+ */
 void
 rocpd_initialize_comm_data_pmc()
 {
@@ -166,6 +232,18 @@ rocpd_initialize_comm_data_pmc()
 }
 
 template <typename Track>
+/**
+ * @brief Record CPU-side communication byte counts as a rocpd PMC event and sample.
+ *
+ * Inserts a per-call PMC event and a time-stamped sample into the rocpd data processor
+ * for the CPU agent associated with the given device. The function maintains a
+ * process-wide, thread-safe accumulator of bytes (static) that is incremented by
+ * the provided `bytes` on each call and the accumulated value is emitted.
+ *
+ * @tparam Track Type providing a `static const char* label` used as the PMC/event name.
+ * @param device_id Device identifier used to look up the CPU agent whose device_id is attributed to the sample.
+ * @param bytes Number of bytes to add to the running accumulator; the emitted value is the accumulator after adding this amount.
+ */
 void
 rocpd_process_cpu_usage_events(const uint32_t device_id, int bytes)
 {
@@ -194,7 +272,15 @@ rocpd_process_cpu_usage_events(const uint32_t device_id, int bytes)
     insert_event_and_sample(Track::label, _now, bytes);
 }
 
-}  // namespace
+}  /**
+ * @brief Initialize rocpd communication-data integrations when enabled.
+ *
+ * If rocpd support is active (get_use_rocpd() returns true), registers
+ * communication data categories and PMD/PMC descriptions with the
+ * rocpd::data_processor by calling the internal initialization helpers.
+ *
+ * This function has no effect when rocpd is disabled.
+ */
 
 void
 comm_data::start()
@@ -206,6 +292,11 @@ comm_data::start()
     }
 }
 
+/**
+ * @brief Perform early initialization for comm_data.
+ *
+ * Ensures the component's configuration is applied by invoking configure().
+ */
 void
 comm_data::preinit()
 {
@@ -238,7 +329,20 @@ comm_data::configure()
 }
 
 #if defined(ROCPROFSYS_USE_MPI)
-// MPI_Send
+/**
+ * @brief Audit an outgoing MPI_Send and record communicated byte counts.
+ *
+ * Records the total bytes sent (count * sizeof(datatype)) to enabled backends:
+ * - Emits a Perfetto counter track for mpi_send.
+ * - If rocpd is enabled, initializes the mpi_send rocpd track and posts a CPU-usage event sample.
+ * - If Timemory is enabled, updates per-tool trackers labeled by destination and tag.
+ *
+ * @param _data Contains caller metadata (e.g., tool_id used as tracker name in Timemory).
+ * @param count Number of elements sent.
+ * @param datatype MPI datatype of each element; its size is used to compute total bytes. If size is zero, the function returns without action.
+ * @param dst MPI destination rank (used in Timemory tracker labels).
+ * @param tag MPI message tag (used in Timemory tracker labels).
+ */
 void
 comm_data::audit(const gotcha_data& _data, audit::incoming, const void*, int count,
                  MPI_Datatype datatype, int dst, int tag, MPI_Comm)
@@ -266,7 +370,22 @@ comm_data::audit(const gotcha_data& _data, audit::incoming, const void*, int cou
     }
 }
 
-// MPI_Recv
+/**
+ * @brief Handle an incoming MPI_Recv event: record communicated byte count to enabled backends.
+ *
+ * Records the total byte size (count * sizeof(datatype)) for an MPI receive and, depending
+ * runtime flags, emits a Perfetto counter, registers/updates an rocpd track and per-event
+ * CPU-usage sample, and adds timemory trackers with per-peer and per-tag labels.
+ *
+ * If the computed element size is zero the function returns immediately.
+ *
+ * @param _data Container with metadata for the intercepted call; its `tool_id` is used
+ *              as the base name for timemory trackers.
+ * @param count Number of elements received.
+ * @param datatype MPI datatype of each element (used to compute element size).
+ * @param dst    Peer rank associated with the receive (used in tracker labels).
+ * @param tag    MPI tag associated with the message (used in tracker labels).
+ */
 void
 comm_data::audit(const gotcha_data& _data, audit::incoming, void*, int count,
                  MPI_Datatype datatype, int dst, int tag, MPI_Comm, MPI_Status*)
@@ -294,7 +413,20 @@ comm_data::audit(const gotcha_data& _data, audit::incoming, void*, int count,
     }
 }
 
-// MPI_Isend
+/**
+ * @brief Audit handler for non-blocking MPI send operations (MPI_Isend).
+ *
+ * Computes the total message size (count * sizeof(datatype)) and, if non-zero,
+ * conditionally records the transfer via Perfetto counters, the rocpd data
+ * processor, and timemory trackers according to the runtime configuration.
+ *
+ * @param _data Metadata about the intercepted call; its `tool_id` is used as the base name
+ *              for timemory trackers.
+ * @param count Number of elements in the send.
+ * @param datatype MPI datatype of each element; its size is obtained via mpi_type_size().
+ * @param dst Destination MPI rank for the send (used in timemory tracker labels).
+ * @param tag MPI message tag (used in timemory tracker labels).
+ */
 void
 comm_data::audit(const gotcha_data& _data, audit::incoming, const void*, int count,
                  MPI_Datatype datatype, int dst, int tag, MPI_Comm, MPI_Request*)
@@ -322,7 +454,26 @@ comm_data::audit(const gotcha_data& _data, audit::incoming, const void*, int cou
     }
 }
 
-// MPI_Irecv
+/**
+ * @brief Handle an incoming MPI_Irecv audit event and record communicated byte counts.
+ *
+ * This records the total byte size (count * size_of(datatype)) for an incoming non-blocking
+ * MPI receive using the enabled telemetry backends:
+ * - If Perfetto is enabled, emits a counter update for the mpi_recv track.
+ * - If the rocpd data path is enabled, ensures the mpi_recv track is initialized and
+ *   records a per-event CPU usage sample.
+ * - If Timemory is enabled, updates per-tool trackers using _data.tool_id and adds
+ *   additional trackers annotated with destination and tag.
+ *
+ * If the MPI datatype size is zero the function returns immediately and performs no recording.
+ *
+ * @param _data Contains metadata for the audited call; _data.tool_id is used as the base
+ *              tracker name for Timemory updates.
+ * @param count Number of elements received.
+ * @param datatype MPI datatype of each element; its size is used to compute total bytes.
+ * @param dst    Destination/peer rank associated with the receive (used for labeling).
+ * @param tag    MPI tag associated with the receive (used for labeling).
+ */
 void
 comm_data::audit(const gotcha_data& _data, audit::incoming, void*, int count,
                  MPI_Datatype datatype, int dst, int tag, MPI_Comm, MPI_Request*)
@@ -350,7 +501,19 @@ comm_data::audit(const gotcha_data& _data, audit::incoming, void*, int count,
     }
 }
 
-// MPI_Bcast
+/**
+ * @brief Handle an incoming MPI_Bcast event for communication-data tracking.
+ *
+ * Records the total bytes communicated (count * sizeof(datatype)) for an MPI_Bcast.
+ * If the datatype size is zero, the call is a no-op. Depending on runtime flags,
+ * the function will:
+ * - emit a Perfetto counter sample for mpi_send,
+ * - initialize and emit a rocpd per-event CPU-usage sample for mpi_send,
+ * - record Timemory trackers named by the originating tool id and a "root" variant.
+ *
+ * The Timemory trackers use _data.tool_id as the base name and append "root=<root>"
+ * for the root-specific breakdown.
+ */
 void
 comm_data::audit(const gotcha_data& _data, audit::incoming, void*, int count,
                  MPI_Datatype datatype, int root, MPI_Comm)
@@ -375,7 +538,18 @@ comm_data::audit(const gotcha_data& _data, audit::incoming, void*, int count,
     }
 }
 
-// MPI_Allreduce
+/**
+ * @brief Handle an intercepted MPI_Allreduce (incoming) event.
+ *
+ * Computes the total transferred byte size (count * size_of(datatype)) and, if nonzero:
+ * - Emits Perfetto counter updates for both send and receive tracks when Perfetto is enabled.
+ * - Lazily initializes rocpd tracks and records per-event CPU-usage samples for both send and receive when rocpd is enabled.
+ * - Records aggregated data with timemory when timemory is enabled.
+ *
+ * @param _data Gotcha wrapper metadata for the intercepted MPI call (used when recording timemory data).
+ * @param count Number of elements in the Allreduce operation; combined with `datatype` to compute byte size.
+ * @param datatype MPI datatype of each element; its size is used to compute the total byte payload.
+ */
 void
 comm_data::audit(const gotcha_data& _data, audit::incoming, const void*, void*, int count,
                  MPI_Datatype datatype, MPI_Op, MPI_Comm)
@@ -400,7 +574,27 @@ comm_data::audit(const gotcha_data& _data, audit::incoming, const void*, void*, 
     if(rocprofsys::get_use_timemory()) add(_data, count * _size);
 }
 
-// MPI_Sendrecv
+/**
+ * @brief Audit an MPI_Sendrecv operation and record communication metrics.
+ *
+ * Records send and receive byte counts for an MPI_Sendrecv call. If enabled,
+ * emits Perfetto counters, enqueues per-event CPU-usage samples via the rocpd
+ * data processor, and updates timemory trackers with aggregated and
+ * per-direction breakdowns (including peer and tag labels).
+ *
+ * If either send or receive MPI datatype size is zero, the function returns
+ * immediately and performs no recording.
+ *
+ * @param _data Context for the intercepted call (contains tool_id used for tracker naming).
+ * @param sendcount Number of elements sent.
+ * @param sendtype MPI datatype of the send buffer.
+ * @param dst Destination rank for the send.
+ * @param sendtag MPI tag for the send.
+ * @param recvcount Number of elements received.
+ * @param recvtype MPI datatype of the receive buffer.
+ * @param src Source rank for the receive.
+ * @param recvtag MPI tag for the receive.
+ */
 void
 comm_data::audit(const gotcha_data& _data, audit::incoming, const void*, int sendcount,
                  MPI_Datatype sendtype, int dst, int sendtag, void*, int recvcount,
@@ -451,7 +645,31 @@ comm_data::audit(const gotcha_data& _data, audit::incoming, const void*, int sen
 }
 
 // MPI_Gather
-// MPI_Scatter
+/**
+ * @brief Audit an MPI_Scatter-like incoming communication event.
+ *
+ * Records communication sizes for both send and receive sides and emits
+ * instrumentation through enabled backends (Perfetto counters, rocpd per-event CPU
+ * usage, and timemory trackers).
+ *
+ * If either MPI datatype has size zero this function returns immediately.
+ *
+ * @param _data Metadata for the intercepted call (tool identifier is read from `_data.tool_id`).
+ * @param audit::incoming Tag indicating this is an incoming/audited call.
+ * @param [in]  Send buffer (unused; present to match MPI-like signature).
+ * @param sendcount Number of elements sent by each participant.
+ * @param sendtype  MPI datatype of the send buffer; its size is used to compute sent bytes.
+ * @param [in]  Recv buffer (unused; present to match MPI-like signature).
+ * @param recvcount Number of elements received by this participant.
+ * @param recvtype  MPI datatype of the receive buffer; its size is used to compute received bytes.
+ * @param root      Rank of the root process in the scatter operation (used for labeling timemory trackers).
+ * @param MPI_Comm  Communicator (unused by this instrumentation).
+ *
+ * Side effects:
+ * - When Perfetto is enabled, emits counter updates for `mpi_send` and `mpi_recv`.
+ * - When rocpd is enabled, records per-event CPU usage samples for send and recv tracks.
+ * - When timemory is enabled, updates trackers named by the tool id and additional root/send/recv breakdowns.
+ */
 void
 comm_data::audit(const gotcha_data& _data, audit::incoming, const void*, int sendcount,
                  MPI_Datatype sendtype, void*, int recvcount, MPI_Datatype recvtype,
@@ -485,7 +703,20 @@ comm_data::audit(const gotcha_data& _data, audit::incoming, const void*, int sen
     }
 }
 
-// MPI_Alltoall
+/**
+ * @brief Handle MPI_Alltoall incoming communication for tracking metrics.
+ *
+ * Computes send/recv byte sizes and, if enabled, records metrics via Perfetto counters,
+ * the rocpd data processor, and timemory trackers. No action is taken if either
+ * datatype size is zero.
+ *
+ * @param _data Contains metadata about the intercepted call; `_data.tool_id` is used
+ *              as the base name for timemory trackers.
+ * @param sendcount Number of elements sent per peer.
+ * @param sendtype MPI datatype for send elements (size resolved via `mpi_type_size`).
+ * @param recvcount Number of elements received per peer.
+ * @param recvtype MPI datatype for receive elements (size resolved via `mpi_type_size`).
+ */
 void
 comm_data::audit(const gotcha_data& _data, audit::incoming, const void*, int sendcount,
                  MPI_Datatype sendtype, void*, int recvcount, MPI_Datatype recvtype,
@@ -521,7 +752,19 @@ comm_data::audit(const gotcha_data& _data, audit::incoming, const void*, int sen
 #if defined(ROCPROFSYS_USE_RCCL)
 // Kept for reference, but now gathered throught the SDK callbacks.
 
-// ncclReduce
+/**
+ * @brief Handle an incoming NCCL Reduce operation for communication-data tracking.
+ *
+ * Computes the total transferred bytes from `count` and `datatype` size; if zero, no action is taken.
+ * When enabled, emits a Perfetto counter and records a rocpd CPU-usage event for the received bytes.
+ * If Timemory is enabled, records the bytes under a tracker named by the Gotcha tool ID and additionally
+ * records a tracker annotated with the reduce `root`.
+ *
+ * @param _data Gotcha wrapper containing metadata; `_data.tool_id` is used as the tracker name.
+ * @param count Number of elements reduced; combined with `datatype` to compute total bytes.
+ * @param datatype NCCL data type used to determine per-element size.
+ * @param root Destination/root rank for the reduction; used to create a root-specific tracker label.
+ */
 void
 comm_data::audit(const gotcha_data& _data, audit::incoming, const void*, const void*,
                  size_t count, ncclDataType_t datatype, ncclRedOp_t, int root, ncclComm_t,
@@ -546,7 +789,28 @@ comm_data::audit(const gotcha_data& _data, audit::incoming, const void*, const v
 // ncclSend
 // ncclGather
 // ncclBcast
-// ncclRecv
+/**
+ * @brief Handle an incoming RCCL communication event and record data-transfer metrics.
+ *
+ * Processes an incoming NCCL/RCCL event described by @_data: computes the byte
+ * size from the provided `datatype` and `count`, classifies the operation by
+ * `_data.tool_id` as a send- or receive-type, and updates enabled backends:
+ * - emits Perfetto counter events when Perfetto is enabled,
+ * - records per-event CPU-usage samples via rocpd when that path is enabled,
+ * - records Timemory trackers and per-peer breakdowns when Timemory is enabled.
+ *
+ * If the datatype size is non-positive the function returns immediately.
+ * If `_data.tool_id` is not recognized as a known send or receive kind, this
+ * function throws via ROCPROFSYS_CI_THROW.
+ *
+ * @param _data Contains metadata for the caught GCC/SDK callback; its `tool_id`
+ *              is used to determine the operation kind (send vs recv).
+ * @param count Number of elements transferred (multiplied by datatype size to
+ *              derive total bytes recorded).
+ * @param datatype RCCL datatype used to compute per-element size.
+ * @param peer    Peer rank associated with the operation; used for Timemory
+ *                per-peer labeling when enabled.
+ */
 void
 comm_data::audit(const gotcha_data& _data, audit::incoming, const void*, size_t count,
                  ncclDataType_t datatype, int peer, ncclComm_t, hipStream_t)
@@ -587,7 +851,22 @@ comm_data::audit(const gotcha_data& _data, audit::incoming, const void*, size_t 
     }
 }
 
-// ncclBroadcast
+/**
+ * @brief Audit handler for an RCCL broadcast operation.
+ *
+ * If the RCCL data type size is positive, records the total byte count (count * type_size)
+ * to enabled backends: Perfetto counters, the rocpd per-event CPU-usage pipeline, and
+ * timemory trackers (each backend gated by its corresponding runtime flag).
+ *
+ * @param _data Contains metadata for the intercepted call; this function uses `_data.tool_id`
+ *              as the timemory tracker base name.
+ * @param count Number of elements being broadcast.
+ * @param datatype RCCL data type of each element; its size (via `rccl_type_size`) is used
+ *                 to compute the total byte payload. If `rccl_type_size(datatype) <= 0`,
+ *                 the function returns immediately and no instrumentation is emitted.
+ * @param root   Rank of the broadcast root; appended to the timemory tracker name when
+ *               timemory is enabled.
+ */
 void
 comm_data::audit(const gotcha_data& _data, audit::incoming, const void*, const void*,
                  size_t count, ncclDataType_t datatype, int root, ncclComm_t, hipStream_t)
@@ -608,7 +887,26 @@ comm_data::audit(const gotcha_data& _data, audit::incoming, const void*, const v
 }
 
 // ncclAllReduce
-// ncclReduceScatter
+/**
+ * @brief Audit handler for incoming ncclReduceScatter-like operations.
+ *
+ * Determines the byte size of the operation from the NCCL datatype and, based on the
+ * recorded tool id in _data, classifies the call as either a send-type (rccl_send) or
+ * recv-type (rccl_recv) operation. When applicable this emits:
+ *  - a Perfetto counter update,
+ *  - a rocpd CPU-usage event,
+ *  - and, if enabled, records the byte payload with timemory.
+ *
+ * If the datatype size is non-positive the call is ignored.
+ *
+ * @param _data Metadata for the intercepted function; only `_data.tool_id` is consulted
+ *              to determine whether the call maps to a send or recv category.
+ * @param count Number of elements involved in the operation (used with `datatype`
+ *              to compute total bytes).
+ * @param datatype NCCL datatype used to compute per-element size.
+ *
+ * @throws std::runtime_error via ROCPROFSYS_CI_THROW if `_data.tool_id` is unrecognized.
+ */
 void
 comm_data::audit(const gotcha_data& _data, audit::incoming, const void*, const void*,
                  size_t count, ncclDataType_t datatype, ncclRedOp_t, ncclComm_t,
@@ -639,7 +937,21 @@ comm_data::audit(const gotcha_data& _data, audit::incoming, const void*, const v
 }
 
 // ncclAllGather
-// ncclAllToAll
+/**
+ * @brief Handle an incoming NCCL All-to-All communication for instrumentation.
+ *
+ * Emits instrumentation for the total payload size (count * element_size) using
+ * any enabled backends: Perfetto counters, the rocpd CPU-usage event path, and
+ * timemory aggregation.
+ *
+ * @param _data Metadata about the intercepted call (source tool/identifier) used
+ *              when recording timemory data.
+ * @param count Number of elements communicated.
+ * @param datatype NCCL data type used to compute element size.
+ *
+ * @note If the computed element size (from `datatype`) is non-positive, the
+ *       function returns immediately and performs no instrumentation.
+ */
 void
 comm_data::audit(const gotcha_data& _data, audit::incoming, const void*, const void*,
                  size_t count, ncclDataType_t datatype, ncclComm_t, hipStream_t)

@@ -112,7 +112,12 @@ struct backtrace_metrics : comp::empty_base
     auto        get_peak_memory() const { return m_mem_peak; }
     auto        get_context_switches() const { return m_ctx_swch; }
     auto        get_page_faults() const { return m_page_flt; }
-    const auto& get_hw_counters() const { return m_hw_counter; }
+    /**
+ * @brief Return the stored hardware counter data.
+ *
+ * @return const hw_counter_data_t& A const reference to the hardware counter values collected for this metrics object.
+ */
+const auto& get_hw_counters() const { return m_hw_counter; }
 
     void post_process_perfetto(int64_t _tid, uint64_t _ts) const;
     void post_process_rocpd(int64_t _tid, uint64_t _ts) const;
